@@ -150,7 +150,7 @@ mount --mkdir /dev/"${disk_selected}"1 /mnt/boot
 
 # 2.2 - Instalar os pacotes essenciais {{{
 # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
-[ $(lscpu | grep --ignore-case --count 'amd') -gt 0 ] \
+[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ] \
   && cpu_microcode=amd-ucode \
   || cpu_microcode=intel-ucode
 
@@ -188,32 +188,35 @@ genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt /bin/sh -c '
 # }}}
 
-# 3.3 - Time {{{
+# 3.3 - Horário {{{
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 hwclock --systohc
+systemctl enable systemd-timesyncd.service
 # }}}
 
 # 3.4 - Localização {{{
-# Remove o comentário de pt_BR.UTF-8 UTF-8 e gera os locales
-sed --in-place "s/#pt_BR.UTF-8/pt_BR.UTF-8/" /etc/locale.gen
+# Remove o comentário de pt_BR.UTF-8 e gera os locales
+sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
 locale-gen
 
 # Cria o arquivo locale.conf e define a variável LANG adequadamente
-echo "LANG=pt_BR.UTF-8" > /etc/locale.conf
+printf "LANG=pt_BR.UTF-8\n" > /etc/locale.conf
 
 # Armazena as definições do layout do teclado do console em vconsole.conf(5)
-echo "KEYMAP=br-abnt2" > /etc/vconsole.conf
+printf "KEYMAP=br-abnt2\n" > /etc/vconsole.conf
 # }}}
 
 # 3.5 - Configuração de rede {{{
 # Cria o arquivo hostname:
-read -p "Digite seu hostname: " HOSTNAME
-echo "${HOSTNAME}" > /etc/hostname
+printf "Digite seu hostname: "
+read -r HOSTNAME
+print "%s\n" "${HOSTNAME}" > /etc/hostname
 
 # /etc/hosts
 cat << EOF > /etc/hosts
 # The following lines are desirable for IPv4 capable hosts
 127.0.0.1 localhost
+# 127.0.1.1 is often used for the FQDN of the machine
 127.0.1.1 ${HOSTNAME}.example.org ${HOSTNAME}
 
 # The following lines are desirable for IPv6 capable hosts
@@ -223,27 +226,30 @@ ff02::2 ip6-allrouters
 EOF
 
 # Ativa o serviço do NetworkManager na inicialização do sistema
-systemctl enable NetworkManager
+systemctl enable NetworkManager.service
 # }}}
 
 # 3.6 - Initramfs {{{
+# mkinitcpio --allpresets
 # }}}
 
 # 3.7 - Senha do root {{{
-read -p "Digite seu nome de usuário: " user
+printf "Digite seu nome de usuário: "
+read -r user
 useradd --create-home --groups wheel --shell /bin/zsh "${user}"
 passwd "${user}"
 
 # Permite que usuários do grupo wheel executem qualquer comando
 #visudo
-sed --in-place "s/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/" /etc/sudoers
+sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" \
+  /etc/sudoers
 
 # Desabilita o login do usuário root
 passwd --lock root
 # }}}
 
 # 3.8 - Gerenciador de boot {{{
-grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
 grub-mkconfig --output=/boot/grub/grub.cfg
 # }}}
 
