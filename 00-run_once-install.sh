@@ -128,8 +128,10 @@ EOF
 
 # 1.11 - Formatar as partições {{{
 # -F: FAT SIZE
+umount -l /dev/"${disk_selected}"1
 mkfs.fat -F 32 /dev/"${disk_selected}"1
-mkfs.ext4 /dev/"${disk_selected}"2
+umount -l /dev/"${disk_selected}"2
+mkfs.ext4 -F /dev/"${disk_selected}"2
 #mkswap /dev/partição_swap
 # }}}
 
@@ -169,7 +171,6 @@ mount --mkdir /dev/"${disk_selected}"1 /mnt/boot
 # networkmanager : Network connection manager and user applications
 # ntfs-3g : NTFS filesystem driver and utilities
 # zsh : A very advanced and programmable command interpreter (shell) for UNIX
-pacman --sync --refresh
 pacstrap -K /mnt base base-devel ${cpu_microcode} dosfstools e2fsprogs \
   efibootmgr grub linux linux-firmware man-db man-pages neovim networkmanager \
   ntfs-3g zsh
