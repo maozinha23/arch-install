@@ -44,7 +44,6 @@ setfont ter-120n
 # Verifica se foi possível conectar à internet
 # Se não foi possível conectar por uma interface ethernet, tenta através de uma
 # interface wireless
-clear
 printf "Verificando a conexão com a internet ...\n"
 
 if ! is_connected; then
@@ -89,12 +88,6 @@ timedatectl set-timezone America/Sao_Paulo
 # }}}
 
 # 1.10 - Partição dos discos {{{
-# GUID para GPT:
-# EFI              C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-# Linux Filesystem 0FC63DAF-8483-4772-8E79-3D69D8477DE4
-# Linux Swap       0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
-#sdX1	EFI System
-#sdX2	Linux filesystem
 printf "O script utilizará o seguinte esquema de partições:\n\
 label: gpt\n\
 device: disco_escolhido\n\
@@ -105,7 +98,7 @@ lsblk
 printf "Escolha o disco para instalação: "
 read -r disk_selected
 
-printf "O sistema será instalado no dispositivo %s.\n\
+printf "O sistema será instalado no dispositivo %s\n\
 TODOS OS DADOS DO DISCO SERÃO PERDIDOS!\n\
 Deseja continuar? Digite 's' para confirmar: " "${disk_selected}"
 read -r disk_confirmation
@@ -115,6 +108,12 @@ if [ ! "${disk_confirmation}" = 's' ]; then
   exit 1
 fi
 
+sfdisk --delete /dev/"${disk_selected}"
+
+# GUID para GPT:
+# EFI              C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+# Linux Filesystem 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+# Linux Swap       0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
 cat << EOF | sfdisk /dev/"${disk_selected}"
 label: gpt
 device: /dev/${disk_selected}
@@ -170,10 +169,10 @@ mount --mkdir /dev/"${disk_selected}"1 /mnt/boot
 # networkmanager : Network connection manager and user applications
 # ntfs-3g : NTFS filesystem driver and utilities
 # zsh : A very advanced and programmable command interpreter (shell) for UNIX
-package_list="base base-devel ${cpu_microcode} dosfstools e2fsprogs efibootmgr \
-  grub linux linux-firmware man-db man-pages neovim networkmanager ntfs-3g zsh"
-
-pacstrap -K /mnt "${package_list}"
+pacman --sync --refresh
+pacstrap -K /mnt base base-devel ${cpu_microcode} dosfstools e2fsprogs \
+  efibootmgr grub linux linux-firmware man-db man-pages neovim networkmanager \
+  ntfs-3g zsh
 # }}}
 
 # }}}
@@ -241,8 +240,7 @@ passwd "${user}"
 
 # Permite que usuários do grupo wheel executem qualquer comando
 #visudo
-sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" \
-  /etc/sudoers
+sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
 
 # Desabilita o login do usuário root
 passwd --lock root
