@@ -6,11 +6,11 @@
 # Funções auxiliares {{{
 # Verifica a conectividade com a internet tentando pingar um servidor confiável
 is_connected() {
-  host='8.8.8.8'  # IP do DNS público do Google
-  count=2         # Número de tentativas de ping
-  timeout=5       # Tempo limite por tentativa em segundos
+  _host='8.8.8.8'  # IP do DNS público do Google
+  _count=2         # Número de tentativas de ping
+  _timeout=5       # Tempo limite por tentativa em segundos
 
-  ping -c "${count}" -W "${timeout}" "${host}" > /dev/null 2>&1
+  ping -c "${_count}" -W "${_timeout}" "${_host}" > /dev/null 2>&1
 }
 # }}}
 
@@ -52,26 +52,25 @@ if ! is_connected; then
   iwctl device list
 
   printf "Escolha o dispositivo: "
-  read -r wifi_device
+  read -r _device
 
-  if iwctl device "${wifi_device}" set-property Powered on; then
-    iwctl station "${wifi_device}" scan
-    iwctl station "${wifi_device}" get-networks
+  if iwctl device "${_device}" set-property Powered on; then
+    iwctl station "${_device}" scan
+    iwctl station "${_device}" get-networks
 
     printf "Escolha a rede sem fio: "
-    read -r wifi_ssid
+    read -r _ssid
 
     printf "Digite a senha: "
     stty -echo
-    read -r wifi_passphrase
+    read -r _passphrase
     stty echo
     printf "\n"
 
-    printf "Tentando conectar-se a rede %s ...\n" "${wifi_ssid}"
-    iwctl --passphrase "${wifi_passphrase}" station "${wifi_device}" \
-      connect "${wifi_ssid}"
+    printf "Tentando conectar-se a rede %s ...\n" "${_ssid}"
+    iwctl --passphrase "${_passphrase}" station "${_device}" connect "${_ssid}"
   else
-    printf "Não foi possível ligar o dispositivo %s\n" "${wifi_device}"
+    printf "Não foi possível ligar o dispositivo %s\n" "${_device}"
   fi
 fi
 
@@ -91,53 +90,53 @@ timedatectl set-timezone America/Sao_Paulo
 printf "O script utilizará o seguinte esquema de partições:\n\
 label: gpt\n\
 device: disco_escolhido\n\
-disco_escolhido1: EFI System       - tamanho: 100MiB\n\
+disco_escolhido1: EFI System       - tamanho: 36MiB\n\
 disco_escolhido2: Linux filesystem - tamanho: resto do disco\n"
 
 lsblk
 printf "Escolha o disco para instalação: "
-read -r disk_selected
+read -r _disk
 
 printf "O sistema será instalado no dispositivo %s\n\
 TODOS OS DADOS DO DISCO SERÃO PERDIDOS!\n\
-Deseja continuar? Digite 's' para confirmar: " "${disk_selected}"
-read -r disk_confirmation
+Deseja continuar? Digite 's' para confirmar: " "${_disk}"
+read -r _continue
 
-if [ ! "${disk_confirmation}" = 's' ]; then
+if [ ! "${_continue}" = 's' ]; then
   printf "O script de instalação será encerrado.\n"
   exit 1
 fi
 
-sfdisk --delete /dev/"${disk_selected}"
+sfdisk --delete /dev/"${_disk}"
 
 # GUID para GPT:
 # EFI              C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 # Linux Filesystem 0FC63DAF-8483-4772-8E79-3D69D8477DE4
 # Linux Swap       0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
-cat << EOF | sfdisk /dev/"${disk_selected}"
+cat << EOF | sfdisk /dev/"${_disk}"
 label: gpt
-device: /dev/${disk_selected}
+device: /dev/${_disk}
 unit: sectors
 first-lba: 2048
 sector-size: 512
 
-/dev/${disk_selected}1 : start= , size=100M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-/dev/${disk_selected}2 : start= , size= ,    type=0FC63DAF-8483-4772-8E79-3D69D8477DE4
+/dev/${_disk}1 : start= , size=36M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+/dev/${_disk}2 : start= , size= , type=0FC63DAF-8483-4772-8E79-3D69D8477DE4
 EOF
 # }}}
 
 # 1.11 - Formatar as partições {{{
 # -F: FAT SIZE
-umount -l /dev/"${disk_selected}"1
-mkfs.fat -F 32 /dev/"${disk_selected}"1
-umount -l /dev/"${disk_selected}"2
-mkfs.ext4 -F /dev/"${disk_selected}"2
+umount -l /dev/"${_disk}"1
+mkfs.fat -F 32 /dev/"${_disk}"1
+umount -l /dev/"${_disk}"2
+mkfs.ext4 -F /dev/"${_disk}"2
 #mkswap /dev/partição_swap
 # }}}
 
 # 1.12 - Montar os sistemas de arquivos {{{
-mount /dev/"${disk_selected}"2 /mnt
-mount --mkdir /dev/"${disk_selected}"1 /mnt/boot
+mount /dev/"${_disk}"2 /mnt
+mount --mkdir /dev/"${_disk}"1 /mnt/efi
 #swapon /dev/partição_swap
 #}}}
 
@@ -235,9 +234,9 @@ systemctl enable NetworkManager.service
 
 # 3.7 - Senha do root {{{
 printf "Digite seu nome de usuário: "
-read -r user
-useradd --create-home --groups wheel --shell /bin/zsh "${user}"
-passwd "${user}"
+read -r _user
+useradd --create-home --groups wheel --shell /bin/zsh "${_user}"
+passwd "${_user}"
 
 # Permite que usuários do grupo wheel executem qualquer comando
 #visudo
@@ -248,7 +247,7 @@ passwd --lock root
 # }}}
 
 # 3.8 - Gerenciador de boot {{{
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB
 grub-mkconfig --output=/boot/grub/grub.cfg
 # }}}
 
