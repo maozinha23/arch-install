@@ -29,6 +29,7 @@ is_connected() {
 # }}}
 
 # 1.5 - Definir o layout e fonte do teclado do console {{{
+printf "Definindo o layout e fonte do teclado do console ...\n"
 loadkeys br-abnt2
 setfont ter-120n
 # }}}
@@ -41,11 +42,11 @@ setfont ter-120n
 # }}}
 
 # 1.8 - Conectar à internet {{{
+printf "Conectando à internet ...\n"
+
 # Verifica se foi possível conectar à internet
 # Se não foi possível conectar por uma interface ethernet, tenta através de uma
 # interface wireless
-printf "Verificando a conexão com a internet ...\n"
-
 if ! is_connected; then
   printf "Não foi possível conectar à internet.\n"
 
@@ -83,10 +84,13 @@ fi
 # }}}
 
 # 1.9 - Atualizar o relógio do sistema {{{
+printf "Atualizando o relógio do sistema ...\n"
 timedatectl set-timezone America/Sao_Paulo
 # }}}
 
 # 1.10 - Partição dos discos {{{
+printf "Particionado os discos ...\n"
+
 printf "O script utilizará o seguinte esquema de partições:\n\
 label: gpt\n\
 device: disco_escolhido\n\
@@ -126,15 +130,14 @@ EOF
 # }}}
 
 # 1.11 - Formatar as partições {{{
-# -F: FAT SIZE
-umount -l /dev/"${_disk}"1
+printf "Formatando as partições ...\n"
 mkfs.fat -F 32 /dev/"${_disk}"1
-umount -l /dev/"${_disk}"2
 mkfs.ext4 -F /dev/"${_disk}"2
 #mkswap /dev/partição_swap
 # }}}
 
 # 1.12 - Montar os sistemas de arquivos {{{
+printf "Montando os sistemas de arquivos ...\n"
 mount /dev/"${_disk}"2 /mnt
 mount --mkdir /dev/"${_disk}"1 /mnt/efi
 #swapon /dev/partição_swap
@@ -149,6 +152,8 @@ mount --mkdir /dev/"${_disk}"1 /mnt/efi
 # }}}
 
 # 2.2 - Instalar os pacotes essenciais {{{
+printf "Instalando os pacotes essenciais ...\n"
+
 # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
 [ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ] \
   && cpu_microcode=amd-ucode \
@@ -178,22 +183,27 @@ pacstrap -K /mnt base base-devel ${cpu_microcode} dosfstools e2fsprogs \
 # }}}
 
 # 3 - Configurar o sistema {{{
+printf "Configurando o sistema ...\n"
 
 # 3.1 - Fstab {{{
+printf "Fstab ...\n"
 genfstab -U /mnt >> /mnt/etc/fstab
 # }}}
 
 # 3.2 - Chroot {{{
+printf "Chroot ...\n"
 arch-chroot /mnt /bin/sh -c '
 # }}}
 
 # 3.3 - Horário {{{
+printf "Horário ...\n"
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 hwclock --systohc
 systemctl enable systemd-timesyncd.service
 # }}}
 
 # 3.4 - Localização {{{
+printf "Localização ...\n"
 # Remove o comentário de pt_BR.UTF-8 e gera os locales
 sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
 locale-gen
@@ -206,17 +216,19 @@ printf "KEYMAP=br-abnt2\n" > /etc/vconsole.conf
 # }}}
 
 # 3.5 - Configuração de rede {{{
+printf "Configuração de rede ...\n"
+
 # Cria o arquivo hostname:
 printf "Digite seu hostname: "
-read -r HOSTNAME
-print "%s\n" "${HOSTNAME}" > /etc/hostname
+read -r _hostname
+printf "%s\n" "${_hostname}" > /etc/hostname
 
 # /etc/hosts
 cat << EOF > /etc/hosts
 # The following lines are desirable for IPv4 capable hosts
 127.0.0.1 localhost
 # 127.0.1.1 is often used for the FQDN of the machine
-127.0.1.1 ${HOSTNAME}.example.org ${HOSTNAME}
+127.0.1.1 ${_hostname}.example.org ${_hostname}
 
 # The following lines are desirable for IPv6 capable hosts
 ::1 localhost ip6-localhost ip6-loopback
@@ -229,10 +241,13 @@ systemctl enable NetworkManager.service
 # }}}
 
 # 3.6 - Initramfs {{{
-# mkinitcpio --allpresets
+#printf "Initramfs ...\n"
+#mkinitcpio --allpresets
 # }}}
 
 # 3.7 - Senha do root {{{
+printf "Senha do root ...\n"
+
 printf "Digite seu nome de usuário: "
 read -r _user
 useradd --create-home --groups wheel --shell /bin/zsh "${_user}"
@@ -247,6 +262,7 @@ passwd --lock root
 # }}}
 
 # 3.8 - Gerenciador de boot {{{
+printf "Gerenciador de boot ...\n"
 grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB
 grub-mkconfig --output=/boot/grub/grub.cfg
 # }}}
@@ -254,9 +270,12 @@ grub-mkconfig --output=/boot/grub/grub.cfg
 # }}}
 
 # 4 - Reiniciar {{{
-
 exit
 '
+printf "Instalação finalizada.\n\
+Pressione ENTER para reiniciar.\n"
+read -r dummy
+
 umount -R /mnt
 reboot
 # }}}
