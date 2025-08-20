@@ -53,8 +53,6 @@ fi
 pkg_list="${pkg_list} 7zip"
 # Download utility that supports HTTP(S), FTP, BitTorrent, and Metalink
 pkg_list="${pkg_list} aria2"
-# Utilities for configuring the Linux ethernet bridge
-pkg_list="${pkg_list} bridge-utils"
 # Lightweight brightness control tool
 pkg_list="${pkg_list} brightnessctl"
 # Lightweight, easy to configure DNS forwarder and DHCP server
