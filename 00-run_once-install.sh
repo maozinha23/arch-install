@@ -180,6 +180,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 # 3.2 - Chroot
 #-------------------------------------------------------------------------------
 printf "\nChroot ...\n"
+cp ~/arch-install/01-run_once-post_install.sh /mnt/
 arch-chroot /mnt /bin/sh -c '
 #-------------------------------------------------------------------------------
 # 3.3 - Horário
@@ -261,6 +262,5 @@ printf "\nInstalação finalizada.\n\
 Pressione ENTER para reiniciar.\n"
 read -r _
 
-cp arch-install/01-run_once-post_install.sh /mnt/
 umount -R /mnt
 reboot
