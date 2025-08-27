@@ -179,8 +179,10 @@ genfstab -U /mnt >> /mnt/etc/fstab
 #-------------------------------------------------------------------------------
 # 3.2 - Chroot
 #-------------------------------------------------------------------------------
-printf "\nChroot ...\n"
+# Copia o script de pós-instalação para a raiz do novo sistema
 cp ~/arch-install/01-run_once-post_install.sh /mnt/
+
+printf "\nChroot ...\n"
 arch-chroot /mnt /bin/sh -c '
 #-------------------------------------------------------------------------------
 # 3.3 - Horário
@@ -240,6 +242,9 @@ printf "Digite seu nome de usuário: "
 read -r _user
 useradd --create-home --groups wheel "${_user}"
 passwd "${_user}"
+
+# Move o script de pós-instalação para a "home" do usuário recém criado
+mv /01-run_once-post_install.sh /home/"${_user}"
 
 # Permite que usuários do grupo wheel executem qualquer comando
 #visudo
