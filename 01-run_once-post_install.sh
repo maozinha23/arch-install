@@ -184,7 +184,7 @@ pkg_list="${pkg_list} ttf-terminus-nerd"
 pkg_list="${pkg_list} xcursor-vanilla-dmz"
 
 # Instala a lista de pacotes
-sudo pacman --sync --refresh --sysupgrade --noconfirm "${pkg_list}"
+sudo pacman --sync --refresh --sysupgrade --noconfirm ${pkg_list}
 
 # Instalação do gerenciador de pacotes para AUR
 # paru : Feature packed AUR helper
@@ -200,7 +200,7 @@ fi
 aur_pkg_list="${aur_pkg_list} i3lock-color"
 
 # Instala a lista de pacotes da AUR
-paru --sync --noconfirm "${aur_pkg_list}"
+paru --sync --noconfirm ${aur_pkg_list}
 
 # Verificador ortográfico para Libreoffice
 curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents/VERO/VeroptBR3215AOC.oxt'
