@@ -97,6 +97,8 @@ pkg_list="${pkg_list} trash-cli"
 # Command line utility which allows to display images in the terminal, written
 # in C++
 pkg_list="${pkg_list} ueberzugpp"
+# A collection of USB tools to query connected USB devices
+pkg_list="${pkg_list} usbutils"
 # Manage user directories like ~/Desktop and ~/Music
 pkg_list="${pkg_list} xdg-user-dirs"
 # A very advanced and programmable command interpreter (shell) for UNIX
@@ -188,19 +190,19 @@ sudo pacman --sync --refresh --sysupgrade --noconfirm ${pkg_list}
 
 # Instalação do gerenciador de pacotes para AUR
 # paru : Feature packed AUR helper
-git clone https://aur.archlinux.org/paru.git
+git clone https://aur.archlinux.org/paru-bin.git
 if (
-  cd paru || exit 1
+  cd paru-bin || exit 1
   makepkg --syncdeps --install
 ); then
-  rm -r paru
+  rm -r "${HOME}"/paru-bin
 fi
 
 # The world's most popular non-default computer lockscreen
 aur_pkg_list="${aur_pkg_list} i3lock-color"
 
 # Instala a lista de pacotes da AUR
-paru --sync --noconfirm ${aur_pkg_list}
+paru --sync --noconfirm --skip-review ${aur_pkg_list}
 
 # Verificador ortográfico para Libreoffice
 curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents/VERO/VeroptBR3215AOC.oxt'
@@ -214,18 +216,20 @@ cd || exit 1
 git clone https://github.com/maozinha23/.dotfiles
 
 # Cria links simbólicos para os arquivos de configuração
-rm .bashrc
-rm .bash_logout
-cd .dotfiles || exit 1
-# stow .
+rm "${HOME}"/.bashrc "${HOME}"/.bash_logout
+# dotfiles comuns a todos os sistemas
+cd "${HOME}"/.dotfiles/common \
+  && ls | xargs stow --target="${HOME}" \
+  || exit 1
+# dotfiles específicos de um determinado host
+[ -d  "${HOME}"/.dotfiles/"$(uname --nodename)" ] \
+  && cd "${HOME}"/.dotfiles/"$(uname --nodename)" \
+  && ls | xargs stow --target="${HOME}" \
 
 # Cria os diretórios de usuário em $HOME
 cd || exit 1
 mkdir Documents Downloads Media
 xdg-user-dirs-update
-
-# Adiciona o usuário atual ao grupo libvirt
-sudo usermod --append --groups libvirt "$(whoami)"
 
 # Remove o script de instalação
 rm -- "$0"
