@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# Installation guide (Português)
-# https://wiki.archlinux.org/title/Installation_guide_(Portugu%C3%AAs)
 #-------------------------------------------------------------------------------
 # Funções auxiliares
 #-------------------------------------------------------------------------------
@@ -14,7 +12,7 @@ is_connected() {
   ping -c "${_count}" -W "${_timeout}" "${_host}" > /dev/null 2>&1
 }
 #-------------------------------------------------------------------------------
-# 5 - Pós-instalação
+# Instalar aplicações
 #-------------------------------------------------------------------------------
 # Conexão com a internet
 printf "\nConectando à internet ...\n"
@@ -86,10 +84,8 @@ pkg_list="${pkg_list} pipewire-jack"
 pkg_list="${pkg_list} pipewire-pulse"
 # CLI and curses mixer for pulseaudio
 pkg_list="${pkg_list} pulsemixer"
-# Systems programming language focused on safety, speed and concurrency
-pkg_list="${pkg_list} rust"
 # SMB Fileserver and AD Domain server
-pkg_list="${pkg_list} samba"
+# pkg_list="${pkg_list} samba"
 # Manage installation of multiple softwares in the same directory tree
 pkg_list="${pkg_list} stow"
 # Command line trashcan (recycle bin) interface
@@ -136,11 +132,11 @@ pkg_list="${pkg_list} blueman"
 # Light-weight system monitor for X, Wayland, and other things, too
 pkg_list="${pkg_list} conky"
 # A QEMU setup for desktop environments
-pkg_list="${pkg_list} qemu-desktop"
+# pkg_list="${pkg_list} qemu-desktop"
 # Removable disk automounter using udisks
 pkg_list="${pkg_list} udiskie"
 # Desktop user interface for managing virtual machines
-pkg_list="${pkg_list} virt-manager"
+# pkg_list="${pkg_list} virt-manager"
 
 # Aplicações para interface gráfica: Acessórios
 # No Nonsense Neovim Client in Rust
@@ -209,10 +205,10 @@ curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents
 unopkg add VeroptBR3215AOC.oxt
 rm VeroptBR3215AOC.oxt
 #-------------------------------------------------------------------------------
-# 6 - Personalização
+# Personalização
 #-------------------------------------------------------------------------------
 # Clona o repositório do Github que contém arquivos de configuração
-cd || exit 1
+cd "${HOME}" || exit 1
 git clone https://github.com/maozinha23/.dotfiles
 
 # Cria links simbólicos para os arquivos de configuração
@@ -227,9 +223,52 @@ cd "${HOME}"/.dotfiles/common \
   && ls | xargs stow --target="${HOME}" \
 
 # Cria os diretórios de usuário em $HOME
-cd || exit 1
-mkdir Documents Downloads Media
+mkdir --parents "${HOME}"/Documents "${HOME}"/Downloads "${HOME}"/Media
 xdg-user-dirs-update
+
+# Altera a fonte do GRUB
+sudo tee --append /etc/default/grub > /dev/null << EOF
+
+# Specifies the font file to be used by GRUB for displaying the boot menu.
+# The file must be in .pf2 format and located in a path readable by GRUB at
+# boot.
+GRUB_FONT="/usr/share/grub/ter-u18n.pf2"
+EOF
+
+sudo grub-mkconfig --output=/boot/grub/grub.cfg
+
+# Define as configurações do teclado
+sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null << EOF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout" "br"
+    Option "XkbModel" "pc105"
+EndSection
+EOF
+
+# Define as configurações do touchpad
+sudo tee /etc/X11/xorg.conf.d/00-touchpad.conf > /dev/null << EOF
+Section "InputClass"
+    Identifier "touchpad"
+    Driver "libinput"
+    MatchIsTouchpad "on"
+    Option "Tapping" "on"
+    Option "TappingButtonMap" "lrm"
+EndSection
+EOF
+
+# Ativa cores e exibição de pacotes por colunas no pacman
+sudo sed --in-place "s/^#\(Color\)/\1/" /etc/pacman.conf
+sudo sed --in-place "s/^#\(VerbosePkgLists\)/\1/" /etc/pacman.conf
+
+# Adiciona o usuário atual ao grupo libvirt para usar qemu + virt-manager
+# sudo usermod --append --groups libvirt "$(whoami)"
+
+# Ativa o serviço de atualização dos dados climáticos para o módulo da polybar
+sudo systemctl --user daemon-reexec
+sudo systemctl --user daemon-reload
+sudo systemctl --user enable --now weather-update.timer
 
 # Remove o script de instalação
 rm -- "$0"
