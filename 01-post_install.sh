@@ -189,7 +189,7 @@ sudo pacman --sync --refresh --sysupgrade --noconfirm ${pkg_list}
 git clone https://aur.archlinux.org/paru-bin.git
 if (
   cd paru-bin || exit 1
-  makepkg --syncdeps --install
+  makepkg --syncdeps --install --noconfirm
 ); then
   rm -r "${HOME}"/paru-bin
 fi
@@ -198,7 +198,7 @@ fi
 aur_pkg_list="${aur_pkg_list} i3lock-color"
 
 # Instala a lista de pacotes da AUR
-paru --sync --noconfirm --skip-review ${aur_pkg_list}
+paru --sync --noconfirm --skipreview ${aur_pkg_list}
 
 # Verificador ortográfico para Libreoffice
 curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents/VERO/VeroptBR3215AOC.oxt'
@@ -266,9 +266,6 @@ sudo sed --in-place "s/^#\(VerbosePkgLists\)/\1/" /etc/pacman.conf
 # sudo usermod --append --groups libvirt "$(whoami)"
 
 # Ativa o serviço de atualização dos dados climáticos para o módulo da polybar
-sudo systemctl --user daemon-reexec
-sudo systemctl --user daemon-reload
-sudo systemctl --user enable --now weather-update.timer
-
-# Remove o script de instalação
-rm -- "$0"
+systemctl --user daemon-reexec
+systemctl --user daemon-reload
+systemctl --user enable --now weather-update.timer
