@@ -83,11 +83,13 @@ timedatectl set-timezone America/Sao_Paulo
 # 1.10 - Partição dos discos
 #-------------------------------------------------------------------------------
 printf "\nParticionado os discos ...\n"
+
+_efi_size=36
 printf "\nO script utilizará o seguinte esquema de partições:\n\
 label: gpt\n\
 device: disco_escolhido\n\
-disco_escolhido1: EFI System       - tamanho: 36MiB\n\
-disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n"
+disco_escolhido1: EFI System       - tamanho: %dMiB\n\
+disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n" "${_efi_size}"
 
 lsblk
 printf "\nEscolha o disco para instalação: "
@@ -116,7 +118,7 @@ unit: sectors
 first-lba: 2048
 sector-size: 512
 
-/dev/${_disk}1 : start= , size=36M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+/dev/${_disk}1 : start= , size=${_efi_size}M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 /dev/${_disk}2 : start= , size= , type=0FC63DAF-8483-4772-8E79-3D69D8477DE4
 EOF
 #-------------------------------------------------------------------------------
@@ -180,7 +182,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 # 3.2 - Chroot
 #-------------------------------------------------------------------------------
 # Copia o script de pós-instalação para a raiz do novo sistema
-cp ~/arch-install/01-run_once-post_install.sh /mnt/
+cp "$(pwd)"/01-post_install.sh /mnt/
 
 printf "\nChroot ...\n"
 arch-chroot /mnt /bin/sh -c '
@@ -244,7 +246,8 @@ useradd --create-home --groups wheel "${_user}"
 passwd "${_user}"
 
 # Move o script de pós-instalação para a "home" do usuário recém criado
-mv /01-run_once-post_install.sh /home/"${_user}"
+chmod 777 /01-post_install.sh
+mv /01-post_install.sh /home/"${_user}"
 
 # Permite que usuários do grupo wheel executem qualquer comando
 #visudo
