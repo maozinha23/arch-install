@@ -53,6 +53,8 @@ pkg_list="${pkg_list} 7zip"
 pkg_list="${pkg_list} aria2"
 # Lightweight brightness control tool
 pkg_list="${pkg_list} brightnessctl"
+# A text-based personal organizer
+pkg_list="${pkg_list} calcurse"
 # Lightweight, easy to configure DNS forwarder and DHCP server
 pkg_list="${pkg_list} dnsmasq"
 # Lightweight video thumbnailer that can be used by file managers
@@ -101,6 +103,8 @@ pkg_list="${pkg_list} xdg-user-dirs"
 pkg_list="${pkg_list} zsh"
 
 # Window Manager e aplicações relacionadas
+# Customizable and lightweight notification-daemon
+pkg_list="${pkg_list} dunst"
 # Tool which allows you to compose wallpapers ("root pixmaps") for X. Fork by
 # Hyriand
 pkg_list="${pkg_list} hsetroot"
@@ -159,6 +163,8 @@ pkg_list="${pkg_list} gimp"
 # Aplicações para interface gráfica: Multimídia
 # a free, open source, and cross-platform media player
 pkg_list="${pkg_list} mpv"
+# Free, open source software for live streaming and recording
+pkg_list="${pkg_list} obs-studio"
 
 # Aplicações para interface gráfica: Escritório
 # LibreOffice branch which contains new features and program enhancements
@@ -173,6 +179,10 @@ pkg_list="${pkg_list} noto-fonts-cjk"
 pkg_list="${pkg_list} papirus-icon-theme"
 # Monospace bitmap font (for X11 and console)
 pkg_list="${pkg_list} terminus-font"
+# Google's Carlito font
+pkg_list="${pkg_list} ttf-carlito"
+# Font family based on the Bitstream Vera Fonts with a wider range of characters
+pkg_list="${pkg_list} ttf-dejavu"
 # Font family which aims at metric compatibility with Arial, Times New Roman,
 # and Courier New
 pkg_list="${pkg_list} ttf-liberation"
@@ -226,7 +236,8 @@ cd "${HOME}"/.dotfiles/common \
 mkdir --parents "${HOME}"/Documents "${HOME}"/Downloads "${HOME}"/Media
 xdg-user-dirs-update
 
-# Altera a fonte do GRUB
+# Remove o tempo de espera e altera a fonte do GRUB
+sudo sed --in-place "s/GRUB_TIMEOUT=[0-9]\+/GRUB_TIMEOUT=0/" /etc/default/grub
 sudo tee --append /etc/default/grub > /dev/null << EOF
 
 # Specifies the font file to be used by GRUB for displaying the boot menu.
@@ -236,6 +247,9 @@ GRUB_FONT="/usr/share/grub/ter-u18n.pf2"
 EOF
 
 sudo grub-mkconfig --output=/boot/grub/grub.cfg
+
+# Altera a fonte do tty
+sudo printf "FONT=ter-118n" >> /etc/vconsole.conf
 
 # Define as configurações do teclado
 sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null << EOF
@@ -264,6 +278,9 @@ sudo sed --in-place "s/^#\(VerbosePkgLists\)/\1/" /etc/pacman.conf
 
 # Adiciona o usuário atual ao grupo libvirt para usar qemu + virt-manager
 # sudo usermod --append --groups libvirt "$(whoami)"
+
+# Ativa o serviço de bluetooth
+sudo systemctl enable --now bluetooth.service
 
 # Ativa o serviço de atualização dos dados climáticos para o módulo da polybar
 systemctl --user daemon-reexec
