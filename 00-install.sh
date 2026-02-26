@@ -63,10 +63,10 @@ printf '\nParticionado os discos ...\n'
 # Tamanho da partição EFI em MiB
 efi_size=400
 
-printf '\nO script utilizará o seguinte esquema de partições:\n\
-label: gpt\n\
-device: disco_escolhido\n\
-disco_escolhido1: EFI System       - tamanho: %dMiB\n\
+printf '\nO script utilizará o seguinte esquema de partições:
+label: gpt
+device: disco_escolhido
+disco_escolhido1: EFI System       - tamanho: %dMiB
 disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n' \
 "${efi_size}"
 
@@ -74,8 +74,8 @@ lsblk
 printf '\nEscolha o disco para instalação: '
 read -r disk
 
-printf 'O sistema será instalado no dispositivo %s\n\
-TODOS OS DADOS DO DISCO SERÃO PERDIDOS!\n\
+printf 'O sistema será instalado no dispositivo %s
+TODOS OS DADOS DO DISCO SERÃO PERDIDOS!
 Deseja continuar? Digite "s" para confirmar: ' "${disk}"
 read -r answer
 
@@ -144,6 +144,7 @@ printf '\nConfigurando o sistema ...\n'
 
 printf '\nFstab ...\n'
 genfstab -U /mnt >> /mnt/etc/fstab
+sed --in-place '/\/boot/ s/fmask=0022,dmask=0022/fmask=0077,dmask=0077/' /mnt/etc/fstab
 
 # Copia o script de pós-instalação para a raiz do novo sistema
 cp "$(pwd)"/01-post_install.sh /mnt/
@@ -215,7 +216,7 @@ exit
 #-------------------------------------------------------------------------------
 # Conclusão
 #-------------------------------------------------------------------------------
-printf '\nInstalação finalizada.\n\
+printf '\nInstalação finalizada.
 Pressione ENTER para reiniciar.\n'
 read -r _
 
