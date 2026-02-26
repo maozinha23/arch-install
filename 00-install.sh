@@ -61,7 +61,7 @@ fi
 printf '\nParticionado os discos ...\n'
 
 # Tamanho da partição EFI em MiB
-efi_size=400
+efi_size=36
 
 printf '\nO script utilizará o seguinte esquema de partições:
 label: gpt
@@ -113,7 +113,7 @@ mkfs.ext4 -F /dev/"${disk}"2
 #-------------------------------------------------------------------------------
 printf '\nMontando os sistemas de arquivos ...\n'
 mount /dev/"${disk}"2 /mnt
-mount --mkdir /dev/"${disk}"1 /mnt/boot
+mount --mkdir /dev/"${disk}"1 /mnt/efi
 #-------------------------------------------------------------------------------
 # Instalação
 #-------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ printf '\nConfigurando o sistema ...\n'
 
 printf '\nFstab ...\n'
 genfstab -U /mnt >> /mnt/etc/fstab
-sed --in-place '/\/boot/ s/fmask=0022,dmask=0022/fmask=0077,dmask=0077/' /mnt/etc/fstab
+#sed --in-place '/\/boot/ s/fmask=0022,dmask=0022/fmask=0137,dmask=0027/' /mnt/etc/fstab
 
 # Copia o script de pós-instalação para a raiz do novo sistema
 cp "$(pwd)"/01-post_install.sh /mnt/
@@ -197,14 +197,14 @@ printf "\nGerenciador de boot ...\n"
 bootctl install
 
 # Configuração do systemd boot
-cat <<EOF > /boot/loader/loader.conf
+cat <<EOF > /efi/loader/loader.conf
 default arch.conf
 timeout 0
 console-mode keep
 EOF
 
 uuid_root=$(findmnt --noheadings --output UUID /)
-cat <<EOF > /boot/loader/entries/arch.conf
+cat <<EOF > /efi/loader/entries/arch.conf
 title Arch Linux
 linux /vmlinuz-linux
 initrd /initramfs-linux.img
