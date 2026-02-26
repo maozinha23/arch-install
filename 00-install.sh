@@ -1,150 +1,123 @@
 #!/bin/sh
 
-# Installation guide (Português)
-# https://wiki.archlinux.org/title/Installation_guide_(Portugu%C3%AAs)
 #-------------------------------------------------------------------------------
-# Funções auxiliares
+# Funções
 #-------------------------------------------------------------------------------
-# Verifica a conectividade com a internet tentando pingar um servidor confiável
+# Verifica a conectividade com a internet
 is_connected() {
-  _host='8.8.8.8'  # IP do DNS público do Google
-  _count=2         # Número de tentativas de ping
-  _timeout=5       # Tempo limite por tentativa em segundos
+  # IP do DNS público do Google
+  host='8.8.8.8'
+  count=2
+  timeout=5
 
-  ping -c "${_count}" -W "${_timeout}" "${_host}" > /dev/null 2>&1
+  ping -c "${count}" -W "${timeout}" "${host}" > /dev/null 2>&1
+}
+
+# Verifica se algum dispositivo de rede wireless foi detectado
+is_wifi_detected() {
+  iwctl device list | grep --quiet 'wlan'
 }
 #-------------------------------------------------------------------------------
-# 1 - Pré-instalação
+# Internet
 #-------------------------------------------------------------------------------
-# 1.1 - Obter uma imagem de instalação
-#-------------------------------------------------------------------------------
-# 1.2 - Verificar a assinatura
-#-------------------------------------------------------------------------------
-# 1.3 - Preparar uma mídia de instalação
-#-------------------------------------------------------------------------------
-# 1.4 - Inicializar o ambiente live
-#-------------------------------------------------------------------------------
-# 1.5 - Definir o layout e fonte do teclado do console
-#-------------------------------------------------------------------------------
-printf "Definindo o layout e fonte do teclado do console ...\n"
-loadkeys br-abnt2
-setfont ter-120n
-#-------------------------------------------------------------------------------
-# 1.6 - Definir o idioma do ambiente live
-#-------------------------------------------------------------------------------
-# 1.7 - Verificar o modo de inicialização
-#cat /sys/firmware/efi/fw_platform_size
-#-------------------------------------------------------------------------------
-# 1.8 - Conectar à internet
-printf "\nConectando à internet ...\n"
+# Se não foi possível conectar à internet por uma interface ethernet, tenta
+# através de uma interface wireless
+printf '\nConectando à internet ...\n'
 
-# Verifica se foi possível conectar à internet
-# Se não foi possível conectar por uma interface ethernet, tenta através de uma
-# interface wireless
-if ! is_connected; then
-  printf "Não foi possível conectar à internet.\n\
-Conectando a uma rede sem fio ...\n\n"
+if ! is_connected && is_wifi_detected; then
+  printf 'Não foi possível acessar a internet através de conexão cabeada\n\n'
 
   iwctl device list
+  printf '\nEscolha o dispositivo de rede sem fio: '
+  read -r device
 
-  printf "\nEscolha o dispositivo: "
-  read -r _device
+  iwctl device "${device}" set-property Powered off
+  iwctl device "${device}" set-property Powered on
+  iwctl station "${device}" scan
+  iwctl station "${device}" get-networks
 
-  iwctl device "${_device}" set-property Powered off
-  iwctl device "${_device}" set-property Powered on
-  iwctl station "${_device}" scan
-  iwctl station "${_device}" get-networks
+  printf '\nEscolha a rede sem fio: '
+  read -r ssid
 
-  printf "\nEscolha a rede sem fio: "
-  read -r _ssid
-
-  printf "Digite a senha: "
+  printf 'Digite a senha: '
   stty -echo
-  read -r _passphrase
+  read -r passphrase
   stty echo
-  printf "\n"
 
-  printf "Tentando conectar-se a rede %s ...\n" "${_ssid}"
-  iwctl --passphrase "${_passphrase}" station "${_device}" connect "${_ssid}"
+  printf '\nTentando conectar-se a rede %s (10s de espera)...\n' "${ssid}"
+  iwctl --passphrase "${passphrase}" station "${device}" connect "${ssid}" \
+    && sleep 10
 fi
 
 # Finaliza o script se não foi possível conectar à internet
 if ! is_connected; then
-  printf "\nNão foi possível conectar à internet.\n\
-O script de instalação será encerrado.\n"
+  printf '\nNão foi possível conectar à internet.\n\
+O script de instalação será encerrado.\n'
   exit 1
 fi
 #-------------------------------------------------------------------------------
-# 1.9 - Atualizar o relógio do sistema
+# Partições
 #-------------------------------------------------------------------------------
-printf "\nAtualizando o relógio do sistema ...\n"
-timedatectl set-timezone America/Sao_Paulo
-#-------------------------------------------------------------------------------
-# 1.10 - Partição dos discos
-#-------------------------------------------------------------------------------
-printf "\nParticionado os discos ...\n"
+printf '\nParticionado os discos ...\n'
 
-_efi_size=36
-printf "\nO script utilizará o seguinte esquema de partições:\n\
+# Tamanho da partição EFI em MiB
+efi_size=400
+
+printf '\nO script utilizará o seguinte esquema de partições:\n\
 label: gpt\n\
 device: disco_escolhido\n\
 disco_escolhido1: EFI System       - tamanho: %dMiB\n\
-disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n" "${_efi_size}"
+disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n' \
+"${efi_size}"
 
 lsblk
-printf "\nEscolha o disco para instalação: "
-read -r _disk
+printf '\nEscolha o disco para instalação: '
+read -r disk
 
-printf "O sistema será instalado no dispositivo %s\n\
+printf 'O sistema será instalado no dispositivo %s\n\
 TODOS OS DADOS DO DISCO SERÃO PERDIDOS!\n\
-Deseja continuar? Digite 's' para confirmar: " "${_disk}"
-read -r _continue
+Deseja continuar? Digite "s" para confirmar: ' "${disk}"
+read -r answer
 
-if [ ! "${_continue}" = 's' ]; then
-  printf "\nO script de instalação será encerrado.\n"
+if [ ! "${answer}" = 's' ]; then
+  printf '\nO script de instalação será encerrado.\n'
   exit 1
 fi
 
-sfdisk --delete /dev/"${_disk}"
+sfdisk --delete /dev/"${disk}"
 
-# GUID para GPT:
-# EFI              C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-# Linux Filesystem 0FC63DAF-8483-4772-8E79-3D69D8477DE4
-# Linux Swap       0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
-cat << EOF | sfdisk /dev/"${_disk}"
+# GUID para GPT
+guid_efi='C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
+guid_linux_fs='0FC63DAF-8483-4772-8E79-3D69D8477DE4'
+
+cat <<END | sfdisk /dev/"${disk}"
 label: gpt
-device: /dev/${_disk}
+device: /dev/${disk}
 unit: sectors
 first-lba: 2048
 sector-size: 512
 
-/dev/${_disk}1 : start= , size=${_efi_size}M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-/dev/${_disk}2 : start= , size= , type=0FC63DAF-8483-4772-8E79-3D69D8477DE4
-EOF
+/dev/${disk}1 : start= , size=${efi_size}M, type=${guid_efi}
+/dev/${disk}2 : start= , size= , type=${guid_linux_fs}
+END
 #-------------------------------------------------------------------------------
-# 1.11 - Formatar as partições
+# Formatação
 #-------------------------------------------------------------------------------
-printf "\nFormatando as partições ...\n"
-mkfs.fat -F 32 /dev/"${_disk}"1
-mkfs.ext4 -F /dev/"${_disk}"2
-#mkswap /dev/partição_swap
+printf '\nFormatando as partições ...\n'
+# EFI - FAT32
+mkfs.fat -F 32 /dev/"${disk}"1
+# / - ext4
+mkfs.ext4 -F /dev/"${disk}"2
 #-------------------------------------------------------------------------------
-# 1.12 - Montar os sistemas de arquivos
+# Montagem
 #-------------------------------------------------------------------------------
-printf "\nMontando os sistemas de arquivos ...\n"
-mount /dev/"${_disk}"2 /mnt
-mount --mkdir /dev/"${_disk}"1 /mnt/efi
-#swapon /dev/partição_swap
+printf '\nMontando os sistemas de arquivos ...\n'
+mount /dev/"${disk}"2 /mnt
+mount --mkdir /dev/"${disk}"1 /mnt/boot
 #-------------------------------------------------------------------------------
-# 2 - Instalação
+# Instalação
 #-------------------------------------------------------------------------------
-# 2.1 - Selecionar os espelhos
-#-------------------------------------------------------------------------------
-# /etc/pacman.d/mirrorlist
-#-------------------------------------------------------------------------------
-# 2.2 - Instalar os pacotes essenciais
-#-------------------------------------------------------------------------------
-printf "\nInstalando os pacotes essenciais ...\n"
+printf '\nInstalando os pacotes essenciais ...\n'
 
 # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
 [ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ] \
@@ -154,10 +127,7 @@ printf "\nInstalando os pacotes essenciais ...\n"
 # amd-ucode : Microcode update image for AMD CPUs
 # base : Minimal package set to define a basic Arch Linux installation
 # base-devel : Basic tools to build Arch Linux packages
-# dosfstools : DOS filesystem utilities
-# e2fsprogs : Ext2/3/4 filesystem utilities
-# efibootmgr : Linux user-space application to modify the EFI Boot Manage
-# grub : GNU GRand Unified Bootloader (2)
+# efibootmgr : Linux user-space application to modify the EFI Boot Manager
 # intel-ucode : Microcode update files for Intel CPUs
 # linux :	The Linux kernel and modules
 # linux-firmware : Firmware files for Linux - Default set
@@ -165,109 +135,88 @@ printf "\nInstalando os pacotes essenciais ...\n"
 # man-pages : Linux man pages
 # neovim : Fork of Vim aiming to improve user experience, plugins, and GUIs
 # networkmanager : Network connection manager and user applications
-# ntfs-3g : NTFS filesystem driver and utilities
-pacstrap -K /mnt base base-devel ${cpu_microcode} dosfstools e2fsprogs \
-  efibootmgr grub linux linux-firmware man-db man-pages neovim networkmanager \
-  ntfs-3g
+pacstrap -K /mnt base base-devel ${cpu_microcode} efibootmgr linux \
+  linux-firmware man-db man-pages neovim networkmanager
 #-------------------------------------------------------------------------------
-# 3 - Configurar o sistema
+# Configuraração
 #-------------------------------------------------------------------------------
-printf "\nConfigurando o sistema ...\n"
-#-------------------------------------------------------------------------------
-# 3.1 - Fstab
-#-------------------------------------------------------------------------------
-printf "\nFstab ...\n"
+printf '\nConfigurando o sistema ...\n'
+
+printf '\nFstab ...\n'
 genfstab -U /mnt >> /mnt/etc/fstab
-#-------------------------------------------------------------------------------
-# 3.2 - Chroot
-#-------------------------------------------------------------------------------
+
 # Copia o script de pós-instalação para a raiz do novo sistema
 cp "$(pwd)"/01-post_install.sh /mnt/
 
-printf "\nChroot ...\n"
+printf '\nChroot ...\n'
 arch-chroot /mnt /bin/sh -c '
-#-------------------------------------------------------------------------------
-# 3.3 - Horário
-#-------------------------------------------------------------------------------
+
 printf "\nHorário ...\n"
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 hwclock --systohc
 systemctl enable systemd-timesyncd.service
-#-------------------------------------------------------------------------------
-# 3.4 - Localização
-#-------------------------------------------------------------------------------
+
 printf "\nLocalização ...\n"
-# Remove o comentário de pt_BR.UTF-8 e gera os locales
+# Gera os locales para pt_BR.UTF-8
 sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
 locale-gen
 
 # Cria o arquivo locale.conf e define a variável LANG adequadamente
 printf "LANG=pt_BR.UTF-8\n" > /etc/locale.conf
 
-# Armazena as definições do layout do teclado do console em vconsole.conf(5)
+# Armazena as definições do layout do teclado do console
 printf "KEYMAP=br-abnt2\n" > /etc/vconsole.conf
-#-------------------------------------------------------------------------------
-# 3.5 - Configuração de rede
-#-------------------------------------------------------------------------------
-printf "\nConfiguração de rede ...\n"
 
+printf "\nConfiguração de rede ...\n"
 # Cria o arquivo hostname:
 printf "Digite seu hostname: "
-read -r _hostname
-printf "%s\n" "${_hostname}" > /etc/hostname
-
-# /etc/hosts
-cat << EOF > /etc/hosts
-# The following lines are desirable for IPv4 capable hosts
-127.0.0.1 localhost
-# 127.0.1.1 is often used for the FQDN of the machine
-127.0.1.1 ${_hostname}.example.org ${_hostname}
-
-# The following lines are desirable for IPv6 capable hosts
-::1 localhost ip6-localhost ip6-loopback
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
-EOF
+read -r hostname
+printf "%s\n" "${hostname}" > /etc/hostname
 
 # Ativa o serviço do NetworkManager na inicialização do sistema
 systemctl enable NetworkManager.service
-#-------------------------------------------------------------------------------
-# 3.6 - Initramfs
-#-------------------------------------------------------------------------------
-#printf "\nInitramfs ...\n"
-#mkinitcpio --allpresets
-#-------------------------------------------------------------------------------
-# 3.7 - Senha do root
-#-------------------------------------------------------------------------------
-printf "\nSenha do root ...\n"
+
+printf "\nCriação do usuário ...\n"
 printf "Digite seu nome de usuário: "
-read -r _user
-useradd --create-home --groups wheel "${_user}"
-passwd "${_user}"
+read -r user
+useradd --create-home --groups wheel "${user}"
+passwd "${user}"
 
 # Move o script de pós-instalação para a "home" do usuário recém criado
 chmod 777 /01-post_install.sh
-mv /01-post_install.sh /home/"${_user}"
+mv /01-post_install.sh /home/"${user}"
 
-# Permite que usuários do grupo wheel executem qualquer comando
-#visudo
+# Permite que usuários do grupo "wheel" executem qualquer comando
 sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
 
 # Desabilita o login do usuário root
 passwd --lock root
-#-------------------------------------------------------------------------------
-# 3.8 - Gerenciador de boot
-#-------------------------------------------------------------------------------
+
 printf "\nGerenciador de boot ...\n"
-grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB
-grub-mkconfig --output=/boot/grub/grub.cfg
-#-------------------------------------------------------------------------------
-# 4 - Reiniciar
-#-------------------------------------------------------------------------------
+bootctl install
+
+# Configuração do systemd boot
+cat <<EOF > /boot/loader/loader.conf
+default arch.conf
+timeout 0
+console-mode keep
+EOF
+
+uuid_root=$(findmnt --noheadings --output UUID /)
+cat <<EOF > /boot/loader/entries/arch.conf
+title Arch Linux
+linux /vmlinuz-linux
+initrd /initramfs-linux.img
+options root=UUID=${uuid_root} rw quiet loglevel=3
+EOF
+
 exit
 '
-printf "\nInstalação finalizada.\n\
-Pressione ENTER para reiniciar.\n"
+#-------------------------------------------------------------------------------
+# Conclusão
+#-------------------------------------------------------------------------------
+printf '\nInstalação finalizada.\n\
+Pressione ENTER para reiniciar.\n'
 read -r _
 
 umount -R /mnt
