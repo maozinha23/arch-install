@@ -152,7 +152,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 cp "$(pwd)/01-post_install.sh" /mnt/
 
 printf '\nChroot ...\n'
-arch-chroot /mnt /bin/sh -c '
+arch-chroot -S /mnt /bin/sh -c '
 
 printf "\nHorário ...\n"
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
@@ -186,7 +186,8 @@ useradd --create-home --groups wheel "$user"
 passwd "$user"
 
 # Move o script de pós-instalação para a "home" do usuário recém criado
-chmod 777 /01-post_install.sh && mv /01-post_install.sh "/home/${user}"
+install_script="${HOME}/arch-install/01-post_install.sh"
+chmod 777 "$install_script" && mv "$install_script" "/home/${user}"
 
 # Permite que usuários do grupo "wheel" executem qualquer comando
 sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
