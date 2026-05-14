@@ -111,11 +111,7 @@ mkfs.ext4 -F "/dev/${disk}2"
 #-------------------------------------------------------------------------------
 printf '\nMontando os sistemas de arquivos ...\n'
 mount "/dev/${disk}2" /mnt
-mount --mkdir \
-  --types vfat \
-  --options fmask=0077,dmask=0077 \
-  "/dev/${disk}1" \
-  /mnt/boot
+mount --mkdir "/dev/${disk}1" /mnt/boot
 #-------------------------------------------------------------------------------
 # Instalação
 #-------------------------------------------------------------------------------
@@ -149,7 +145,7 @@ printf '\nFstab ...\n'
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # Copia o script de pós-instalação para a raiz do novo sistema
-cp "$(pwd)/01-post_install.sh" /mnt/
+cp "${HOME}/arch-install/01-post_install.sh" /mnt/
 
 printf '\nChroot ...\n'
 arch-chroot -S /mnt /bin/sh -c '
@@ -186,8 +182,7 @@ useradd --create-home --groups wheel "$user"
 passwd "$user"
 
 # Move o script de pós-instalação para a "home" do usuário recém criado
-install_script="${HOME}/arch-install/01-post_install.sh"
-chmod 777 "$install_script" && mv "$install_script" "/home/${user}"
+chmod 777 "01-post_install.sh" && mv "01-post_install.sh" "/home/${user}"
 
 # Permite que usuários do grupo "wheel" executem qualquer comando
 sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
