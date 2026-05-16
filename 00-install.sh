@@ -1,6 +1,10 @@
 #!/usr/bin/env zsh
+
+# Define o layout de teclado e fonte durante a instalação
+loadkeys br-abnt2
+setfont -d cp850-8x16
 #-------------------------------------------------------------------------------
-# Funções
+# Internet
 #-------------------------------------------------------------------------------
 # Verifica a conectividade com a internet
 is_connected() {
@@ -17,13 +21,9 @@ is_connected() {
 is_wifi_detected() {
   iwctl device list | grep --quiet 'wlan'
 }
-#-------------------------------------------------------------------------------
-# Internet
-#-------------------------------------------------------------------------------
+
 # Se não foi possível conectar à internet por uma interface ethernet, tenta
 # através de uma interface wireless
-printf '\nConectando à internet ...\n'
-
 if ! is_connected && is_wifi_detected; then
   printf 'Não foi possível acessar a internet através de conexão cabeada\n\n'
 
@@ -56,8 +56,6 @@ fi
 #-------------------------------------------------------------------------------
 # Partições
 #-------------------------------------------------------------------------------
-printf '\nParticionado os discos ...\n'
-
 # Tamanho da partição EFI em MiB
 efi_size=400
 
@@ -72,7 +70,7 @@ lsblk
 printf '\nEscolha o disco para instalação: '
 read -r disk
 
-printf 'O sistema será instalado no dispositivo %s
+printf 'O sistema será instalado no dispositivo "%s"
 TODOS OS DADOS DO DISCO SERÃO PERDIDOS!
 Deseja continuar? Digite "s" para confirmar: ' "$disk"
 read -r answer
@@ -99,24 +97,18 @@ sector-size: 512
 /dev/${disk}2 : start= , size= , type=$guid_linux_fs
 END
 #-------------------------------------------------------------------------------
-# Formatação
+# Formatação e montagem
 #-------------------------------------------------------------------------------
-printf '\nFormatando as partições ...\n'
-# EFI - FAT32
+# Boot (EFI): FAT32
 mkfs.fat -F 32 "/dev/${disk}1"
-# / - ext4
+# Sistema: ext4
 mkfs.ext4 -F "/dev/${disk}2"
-#-------------------------------------------------------------------------------
-# Montagem
-#-------------------------------------------------------------------------------
-printf '\nMontando os sistemas de arquivos ...\n'
+
 mount "/dev/${disk}2" /mnt
 mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
 #-------------------------------------------------------------------------------
-# Instalação
+# Instalação de pacotes
 #-------------------------------------------------------------------------------
-printf '\nInstalando os pacotes essenciais ...\n'
-
 # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
 [[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ]] \
   && cpu_microcode=amd-ucode \
@@ -125,7 +117,12 @@ printf '\nInstalando os pacotes essenciais ...\n'
 # amd-ucode : Microcode update image for AMD CPUs
 # base : Minimal package set to define a basic Arch Linux installation
 # base-devel : Basic tools to build Arch Linux packages
+# btop : A monitor of system resources, bpytop ported to C++
+# dosfstools : DOS filesystem utilities
+# e2fsprogs : Ext2/3/4 filesystem utilities
 # efibootmgr : Linux user-space application to modify the EFI Boot Manager
+# exfatprogs : exFAT filesystem userspace utilities for the Linux Kernel exfat driver
+# fzf : Command-line fuzzy finder
 # git : the fast distributed version control system
 # intel-ucode : Microcode update files for Intel CPUs
 # linux : The Linux kernel and modules
@@ -134,48 +131,65 @@ printf '\nInstalando os pacotes essenciais ...\n'
 # man-pages : Linux man pages
 # neovim : Fork of Vim aiming to improve user experience, plugins, and GUIs
 # networkmanager : Network connection manager and user applications
-pacstrap -K /mnt base base-devel $cpu_microcode efibootmgr git linux \
-  linux-firmware man-db man-pages neovim networkmanager
+# openssh : SSH protocol implementation for remote login, command execution and file transfer
+# trash-cli : Command line trashcan (recycle bin) interface
+# ufw : Uncomplicated and easy to use CLI tool for managing a netfilter firewall
+# usbutils : A collection of USB tools to query connected USB devices
+pacstrap -K /mnt \
+  base \
+  base-devel \
+  btop \
+  $cpu_microcode \
+  dosfstools \
+  e2fsprogs \
+  efibootmgr \
+  exfatprogs \
+  fzf \
+  git \
+  linux \
+  linux-firmware \
+  man-db \
+  man-pages \
+  neovim \
+  networkmanager \
+  openssh \
+  trash-cli \
+  ufw \
+  usbutils
 #-------------------------------------------------------------------------------
-# Configuraração
+# Configuração
 #-------------------------------------------------------------------------------
-printf '\nConfigurando o sistema ...\n'
-
-printf '\nFstab ...\n'
+# Definição de montagem para as partições de sistema e boot
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # Copia o script de pós-instalação para a raiz do novo sistema
 cp "${HOME}/arch-install/01-post_install.sh" /mnt/
 
-printf '\nChroot ...\n'
+# Interage com o novo sistema
 arch-chroot -S /mnt /bin/sh -c '
 
-printf "\nHorário ...\n"
+# Horário
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 hwclock --systohc
 systemctl enable systemd-timesyncd.service
 
-printf "\nLocalização ...\n"
-# Gera os locales para pt_BR.UTF-8
+# Localização para português do Brasil
 sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
 locale-gen
-
-# Cria o arquivo locale.conf e define a variável LANG adequadamente
 printf "LANG=pt_BR.UTF-8\n" > /etc/locale.conf
 
-# Armazena as definições do layout do teclado do console
+# Definições do layout do teclado e fonte do console
 printf "KEYMAP=br-abnt2\nFONT=cp850-8x16\n" > /etc/vconsole.conf
 
-printf "\nConfiguração de rede ...\n"
-# Cria o arquivo hostname:
+# Hostname
 printf "Digite seu hostname: "
 read -r hostname
 printf "%s\n" "$hostname" > /etc/hostname
 
-# Ativa o serviço do NetworkManager na inicialização do sistema
+# NetworkManager
 systemctl enable NetworkManager.service
 
-printf "\nCriação do usuário ...\n"
+# Criação do usuário
 printf "Digite seu nome de usuário: "
 read -r user
 useradd --create-home --groups wheel "$user"
@@ -190,10 +204,9 @@ sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
 # Desabilita o login do usuário root
 passwd --lock root
 
-printf "\nGerenciador de boot ...\n"
+# Gerenciador de boot (systemd-boot)
 bootctl install
 
-# Configuração do systemd boot
 cat <<EOF > /boot/loader/loader.conf
 default arch.conf
 timeout 0
@@ -213,9 +226,10 @@ exit
 #-------------------------------------------------------------------------------
 # Conclusão
 #-------------------------------------------------------------------------------
-printf '\nInstalação finalizada.
-Pressione ENTER para reiniciar.\n'
+umount -R /mnt
+sync
+
+printf '\nInstalação finalizada.\nPressione ENTER para reiniciar.\n'
 read -r _
 
-umount -R /mnt
 reboot
