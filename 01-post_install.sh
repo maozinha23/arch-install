@@ -1,16 +1,16 @@
-#!/bin/sh
-
+#!/usr/bin/env bash
 #-------------------------------------------------------------------------------
 # Funções
 #-------------------------------------------------------------------------------
 # Verifica a conectividade com a internet
 is_connected() {
+  local count host timeout
   # IP do DNS público do Google
   host='8.8.8.8'
   count=2
   timeout=5
 
-  ping -c "${count}" -W "${timeout}" "${host}" > /dev/null 2>&1
+  ping -c "$count" -W "$timeout" "$host" > /dev/null 2>&1
 }
 
 # Verifica se algum dispositivo de rede wireless foi detectado
@@ -36,14 +36,13 @@ if ! is_connected && is_wifi_detected; then
   read -r password
   stty echo
 
-  printf '\nTentando conectar-se a rede %s (10s de espera)...\n' "${ssid}"
-  nmcli device wifi connect "${ssid}" password "${password}" && sleep 10
+  printf '\nTentando conectar-se a rede %s (10s de espera)...\n' "$ssid"
+  nmcli device wifi connect "$ssid" password "$password" && sleep 10
 fi
 
 # Finaliza o script se não foi possível conectar à internet
 if ! is_connected; then
-  printf '\nNão foi possível conectar à internet.\n\
-O script de instalação será encerrado.\n'
+  printf '\nNão foi possível conectar à internet.\nO script de instalação será encerrado.\n'
   exit 1
 fi
 #-------------------------------------------------------------------------------
@@ -51,197 +50,205 @@ fi
 #-------------------------------------------------------------------------------
 # Aplicações para terminal
 # File archiver for extremely high compression
-pkg_list="${pkg_list} 7zip"
+pkg_list="$pkg_list 7zip"
 # Download utility that supports HTTP(S), FTP, BitTorrent, and Metalink
-pkg_list="${pkg_list} aria2"
+pkg_list="$pkg_list aria2"
+# Bash language server implementation based on Tree Sitter and its grammar for
+# Bash
+pkg_list="$pkg_list bash-language-server"
 # TUI for managing bluetooth devices
-pkg_list="${pkg_list} bluetui"
+pkg_list="$pkg_list bluetui"
 # Lightweight brightness control tool
-pkg_list="${pkg_list} brightnessctl"
-# A monitor of system resources, bpytop ported to C++
-pkg_list="${pkg_list} btop"
+pkg_list="$pkg_list brightnessctl"
 # Image-to-text converter supporting a wide range of symbols and palettes,
 # transparency, animations, etc.
-pkg_list="${pkg_list} chafa"
-# DOS filesystem utilities
-pkg_list="${pkg_list} dosfstools"
-# Ext2/3/4 filesystem utilities
-pkg_list="${pkg_list} e2fsprogs"
-# Command-line fuzzy finder
-pkg_list="${pkg_list} fzf"
+pkg_list="$pkg_list chafa"
+# C language family frontend for LLVM
+pkg_list="$pkg_list clang"
 # An interpreter for the PostScript language
-pkg_list="${pkg_list} ghostscript"
-# the fast distributed version control system
-pkg_list="${pkg_list} git"
+pkg_list="$pkg_list ghostscript"
 # An image viewing/manipulation program
-pkg_list="${pkg_list} imagemagick"
+pkg_list="$pkg_list imagemagick"
 # OpenJDK Java __ full runtime environment
-pkg_list="${pkg_list} jre-openjdk"
+pkg_list="$pkg_list jre-openjdk"
 # Command-line JSON processor
-pkg_list="${pkg_list} jq"
+pkg_list="$pkg_list jq"
 # A terminal file manager inspired by ranger
-pkg_list="${pkg_list} lf"
+pkg_list="$pkg_list lf"
 # Multi-purpose desktop calculator
-pkg_list="${pkg_list} libqalculate"
+pkg_list="$pkg_list libqalculate"
+# Lua Language Server coded by Lua
+pkg_list="$pkg_list lua-language-server"
 # Disk usage analyzer with an ncurses interface
-pkg_list="${pkg_list} ncdu"
-# NTFS filesystem driver and utilities
-pkg_list="${pkg_list} ntfs-3g"
-# SSH protocol implementation for remote login, command execution and file
-# transfer
-pkg_list="${pkg_list} openssh"
+pkg_list="$pkg_list ncdu"
 # Reader and rewriter of EXIF information that supports raw files
-pkg_list="${pkg_list} perl-image-exiftool"
+pkg_list="$pkg_list perl-image-exiftool"
 # Low-latency audio/video router and processor - JACK replacement
-pkg_list="${pkg_list} pipewire-jack"
+pkg_list="$pkg_list pipewire-jack"
 # Low-latency audio/video router and processor - PulseAudio replacement
-pkg_list="${pkg_list} pipewire-pulse"
+pkg_list="$pkg_list pipewire-pulse"
 # CLI and curses mixer for pulseaudio
-pkg_list="${pkg_list} pulsemixer"
+pkg_list="$pkg_list pulsemixer"
+# Type checker for the Python language
+pkg_list="$pkg_list pyright"
+# A search tool that combines the usability of ag with the raw speed of grep
+pkg_list="$pkg_list ripgrep"
 # Manage installation of multiple softwares in the same directory tree
-pkg_list="${pkg_list} stow"
-# Command line trashcan (recycle bin) interface
-pkg_list="${pkg_list} trash-cli"
-# A collection of USB tools to query connected USB devices
-pkg_list="${pkg_list} usbutils"
+pkg_list="$pkg_list stow"
+# Shell script analysis tool
+pkg_list="$pkg_list shellcheck"
+# Removable disk automounter using udisks
+pkg_list="$pkg_list udiskie"
 # Manage user directories like ~/Desktop and ~/Music
-pkg_list="${pkg_list} xdg-user-dirs"
+pkg_list="$pkg_list xdg-user-dirs"
 # A youtube-dl fork with additional features and fixes
-pkg_list="${pkg_list} yt-dlp"
+pkg_list="$pkg_list yt-dlp"
 # External JavaScript for yt-dlp supporting many runtimes
-pkg_list="${pkg_list} yt-dlp-ejs"
+pkg_list="$pkg_list yt-dlp-ejs"
+# A terminal multiplexer
+pkg_list="$pkg_list zellij"
 # A very advanced and programmable command interpreter (shell) for UNIX
-pkg_list="${pkg_list} zsh"
+pkg_list="$pkg_list zsh"
 
 # Window Manager e aplicações relacionadas
 # Customizable and lightweight notification-daemon
-pkg_list="${pkg_list} dunst"
+pkg_list="$pkg_list dunst"
 # Screenshot utility for Wayland
-pkg_list="${pkg_list} grim"
+pkg_list="$pkg_list grim"
 # A window switcher, application launcher and dmenu replacement
-pkg_list="${pkg_list} rofi"
+pkg_list="$pkg_list rofi"
 # Select a region in a Wayland compositor
-pkg_list="${pkg_list} slurp"
+pkg_list="$pkg_list slurp"
 # Tiling Wayland compositor and replacement for the i3 window manager
-pkg_list="${pkg_list} sway"
+pkg_list="$pkg_list sway"
 # Idle management daemon for Wayland
-pkg_list="${pkg_list} swayidle"
+pkg_list="$pkg_list swayidle"
 # Screen locker for Wayland
-pkg_list="${pkg_list} swaylock"
+pkg_list="$pkg_list swaylock"
 # Highly customizable Wayland bar for Sway and Wlroots based compositors
-pkg_list="${pkg_list} waybar"
+pkg_list="$pkg_list waybar"
 # A tool for debugging wayland events on a Wayland window, analagous to the X11
 # tool xev
-pkg_list="${pkg_list} wev"
+pkg_list="$pkg_list wev"
 # Command-line copy/paste utilities for Wayland
-pkg_list="${pkg_list} wl-clipboard"
+pkg_list="$pkg_list wl-clipboard"
 # Utility to manage outputs of a Wayland compositor
-pkg_list="${pkg_list} wlr-randr"
+pkg_list="$pkg_list wlr-randr"
 
 # Aplicações para interface gráfica: Sistema
 # Fast, lightweight, and minimalistic Wayland terminal emulator
-pkg_list="${pkg_list} foot"
-# Removable disk automounter using udisks
-pkg_list="${pkg_list} udiskie"
+pkg_list="$pkg_list foot"
 
 # Aplicações para interface gráfica: Acessórios
-# 
-# pkg_list="${pkg_list} "
+#
+# pkg_list="$pkg_list "
 
 # Aplicações para interface gráfica: Internet
 # Fast, Private & Safe Web Browser
-pkg_list="${pkg_list} firefox"
+pkg_list="$pkg_list firefox"
 # Portuguese (Brazilian) language pack for Firefox
-pkg_list="${pkg_list} firefox-i18n-pt-br"
+pkg_list="$pkg_list firefox-i18n-pt-br"
 
 # Aplicações para interface gráfica: Imagem
-# GNU Image Manipulation Program
-pkg_list="${pkg_list} gimp"
 # A lightweight image viewer for Wayland display servers
-pkg_list="${pkg_list} swayimg"
+pkg_list="$pkg_list swayimg"
 
 # Aplicações para interface gráfica: Multimídia
 # a free, open source, and cross-platform media player
-pkg_list="${pkg_list} mpv"
+pkg_list="$pkg_list mpv"
 
 # Aplicações para interface gráfica: Escritório
 # LibreOffice branch which contains new features and program enhancements
-pkg_list="${pkg_list} libreoffice-fresh"
+pkg_list="$pkg_list libreoffice-fresh"
 # Portuguese (Brasil) language pack for LibreOffice Fresh
-pkg_list="${pkg_list} libreoffice-fresh-pt-br"
+pkg_list="$pkg_list libreoffice-fresh-pt-br"
 
 # Temas, ícones, cursores e fontes
 # Google Noto TTF fonts
-pkg_list="${pkg_list} noto-fonts"
+pkg_list="$pkg_list noto-fonts"
 # Google Noto CJK fonts
-pkg_list="${pkg_list} noto-fonts-cjk"
+pkg_list="$pkg_list noto-fonts-cjk"
 # Google Noto Color Emoji font
-pkg_list="${pkg_list} noto-fonts-emoji"
-# Monospace bitmap font (for X11 and console)
-pkg_list="${pkg_list} terminus-font"
+pkg_list="$pkg_list noto-fonts-emoji"
 # Bitstream Vera fonts
-pkg_list="${pkg_list} ttf-bitstream-vera"
+pkg_list="$pkg_list ttf-bitstream-vera"
 # A serif font family metric-compatible with Cambria font family
-pkg_list="${pkg_list} ttf-caladea"
+pkg_list="$pkg_list ttf-caladea"
 # Google's Carlito font
-pkg_list="${pkg_list} ttf-carlito"
+pkg_list="$pkg_list ttf-carlito"
 # Chrome OS core fonts
-pkg_list="${pkg_list} ttf-croscore"
+pkg_list="$pkg_list ttf-croscore"
 # Font family based on the Bitstream Vera Fonts with a wider range of characters
-pkg_list="${pkg_list} ttf-dejavu"
+pkg_list="$pkg_list ttf-dejavu"
 # Font family which aims at metric compatibility with Arial, Times New Roman,
 # and Courier New
-pkg_list="${pkg_list} ttf-liberation"
-# Patched font Terminus (Terminess) from nerd fonts library
-pkg_list="${pkg_list} ttf-terminus-nerd"
+pkg_list="$pkg_list ttf-liberation"
 
 # Instala a lista de pacotes
-sudo pacman --sync --refresh --sysupgrade --noconfirm ${pkg_list}
+sudo pacman --sync --refresh --sysupgrade --noconfirm $pkg_list
 
-# Instalação do gerenciador de pacotes para AUR
-# Yet another yogurt. Pacman wrapper and AUR helper written in go. Pre-compiled
-git clone https://aur.archlinux.org/yay-bin.git
-if (
-  cd yay-bin || exit 1
-  makepkg --syncdeps --install --noconfirm
-); then
-  rm -r "${HOME}"/yay-bin
+# Instalação de pacotes da AUR
+# yay : Yet another yogurt. Pacman wrapper and AUR helper written in go
+if git clone https://aur.archlinux.org/yay-bin.git; then
+  if cd yay-bin \
+    && makepkg --syncdeps --install --noconfirm \
+    && rm --recursive "${HOME}/yay-bin"; then
+
+    # An open source cross-platform alternative to AirDrop
+    aur_pkg_list="$aur_pkg_list localsend-bin"
+    # Drawing/editing program modeled after Paint.NET. It's goal is to provide a
+    # simplified alternative to GIMP for casual users
+    aur_pkg_list="$aur_pkg_list pinta"
+
+    # Instala a lista de pacotes da AUR
+    yay $aur_pkg_list
+  fi
 fi
-
-# An open source cross-platform alternative to AirDrop
-aur_pkg_list="${aur_pkg_list} localsend-bin"
-
-# Instala a lista de pacotes da AUR
-yay -S --noconfirm --quiet ${aur_pkg_list}
 
 # Verificador ortográfico para Libreoffice
 curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents/VERO/VeroptBR3215AOC.oxt'
-unopkg add VeroptBR3215AOC.oxt
-rm VeroptBR3215AOC.oxt
+unopkg add VeroptBR3215AOC.oxt && rm VeroptBR3215AOC.oxt
 #-------------------------------------------------------------------------------
 # Personalização
 #-------------------------------------------------------------------------------
-# Clona o repositório do Github que contém arquivos de configuração
-cd "${HOME}" || exit 1
-git clone https://github.com/maozinha23/.dotfiles
-
-# Cria links simbólicos para os arquivos de configuração
-rm "${HOME}"/.bashrc "${HOME}"/.bash_logout
-# dotfiles comuns a todos os sistemas
-cd "${HOME}"/.dotfiles/common \
-  && ls | xargs stow --target="${HOME}" \
-  || exit 1
-
-# Cria os diretórios de usuário em $HOME
-mkdir --parents "${HOME}"/Documents "${HOME}"/Downloads "${HOME}"/Media
-xdg-user-dirs-update
-
-# Altera a fonte do tty
-sudo printf 'FONT=ter-118n' >> /etc/vconsole.conf
+# Firewall
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw limit ssh
+sudo ufw enable
 
 # Ativa cores e exibição de pacotes por colunas no pacman
 sudo sed --in-place 's/^#\(Color\)/\1/' /etc/pacman.conf
 sudo sed --in-place 's/^#\(VerbosePkgLists\)/\1/' /etc/pacman.conf
 
-# Ativa o serviço de bluetooth
+# Bluetooth
 sudo systemctl enable --now bluetooth.service
+
+# Clona o repositório do Github que contém arquivos de configuração e cria links
+# simbólicos para esses arquivos nos seus respectivos diretórios
+if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
+  # Remove arquivos de configuração do bash
+  rm .bashrc .bash_logout
+
+  cd .dotfiles || exit 1
+  apps=(*/)
+
+  if stow --target="$HOME" --no-folding "${apps[@]}"; then
+    # Cria os diretórios de usuário em $HOME
+    mkdir --parents \
+      "${HOME}/Documents" \
+      "${HOME}/Downloads" \
+      "${HOME}/Media" \
+      "$HOME/Projects"
+    xdg-user-dirs-update
+
+    # Cria um perfil padrão no firefox
+    firefox -CreateProfile "profile ${HOME}/.config/mozilla/firefox/profile"
+    firefox --headless \
+      --profile "${HOME}/.config/mozilla/firefox/profile" \
+      --screenshot /dev/null about:blank
+
+    # Altera o shell para zsh e retorna ao login
+    chsh --shell /usr/bin/zsh && kill -TERM "$PPID"
+  fi
+fi
