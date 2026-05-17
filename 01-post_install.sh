@@ -192,7 +192,7 @@ sudo pacman --sync --refresh --sysupgrade --noconfirm $pkg_list
 if git clone https://aur.archlinux.org/yay-bin.git; then
   if cd yay-bin \
     && makepkg --syncdeps --install --noconfirm \
-    && rm --recursive "${HOME}/yay-bin"; then
+    && rm --recursive --force "${HOME}/yay-bin"; then
 
     # An open source cross-platform alternative to AirDrop
     aur_pkg_list="$aur_pkg_list localsend-bin"
@@ -201,13 +201,9 @@ if git clone https://aur.archlinux.org/yay-bin.git; then
     aur_pkg_list="$aur_pkg_list pinta"
 
     # Instala a lista de pacotes da AUR
-    yay $aur_pkg_list
+    yay --sync $aur_pkg_list
   fi
 fi
-
-# Verificador ortográfico para Libreoffice
-curl --remote-name 'https://pt-br.libreoffice.org/assets/Uploads/PT-BR-Documents/VERO/VeroptBR3215AOC.oxt'
-unopkg add VeroptBR3215AOC.oxt && rm VeroptBR3215AOC.oxt
 #-------------------------------------------------------------------------------
 # Personalização
 #-------------------------------------------------------------------------------
@@ -227,28 +223,31 @@ sudo systemctl enable --now bluetooth.service
 # Clona o repositório do Github que contém arquivos de configuração e cria links
 # simbólicos para esses arquivos nos seus respectivos diretórios
 if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
-  # Remove arquivos de configuração do bash
-  rm .bashrc .bash_logout
+  # Remove o arquivo de configuração padrão do bash
+  rm .bashrc
 
   cd .dotfiles || exit 1
   apps=(*/)
 
   if stow --target="$HOME" --no-folding "${apps[@]}"; then
     # Cria os diretórios de usuário em $HOME
-    mkdir --parents \
-      "${HOME}/Documents" \
-      "${HOME}/Downloads" \
-      "${HOME}/Media" \
-      "$HOME/Projects"
     xdg-user-dirs-update
 
-    # Cria um perfil padrão no firefox
-    firefox -CreateProfile "profile ${HOME}/.config/mozilla/firefox/profile"
+    # Cria um perfil padrão no firefox e copia "user.js" personalizado
+    firefox -CreateProfile default
     firefox --headless \
-      --profile "${HOME}/.config/mozilla/firefox/profile" \
+      --profile "$HOME"/.config/mozilla/firefox/*default/ \
       --screenshot /dev/null about:blank
+    cp "${HOME}/.config/mozilla/firefox/user.js" \
+      "${HOME}/.config/mozilla/firefox/*default/"
 
-    # Altera o shell para zsh e retorna ao login
-    chsh --shell /usr/bin/zsh && kill -TERM "$PPID"
+    # Deleta diretórios usados para instalar o Pinta
+    trash .dotnet .nugget .local/share/NuGet
+
+    # Altera o shell para zsh
+    chsh --shell /usr/bin/zsh
+
+    # Apaga o script
+    trash -- "$0"
   fi
 fi
