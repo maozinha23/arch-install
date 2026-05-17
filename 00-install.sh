@@ -193,7 +193,9 @@ systemctl enable NetworkManager.service
 printf "Digite seu nome de usuário: "
 read -r user
 useradd --create-home --groups wheel "$user"
-passwd "$user"
+while true; do
+  passwd "$user" && break
+done
 
 # Move o script de pós-instalação para a "home" do usuário recém criado
 chmod 777 "01-post_install.sh" && mv "01-post_install.sh" "/home/${user}"
@@ -227,7 +229,6 @@ exit
 # Conclusão
 #-------------------------------------------------------------------------------
 umount -R /mnt
-sync
 
 printf '\nInstalação finalizada.\nPressione ENTER para reiniciar.\n'
 read -r _
