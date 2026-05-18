@@ -205,7 +205,7 @@ if git clone https://aur.archlinux.org/yay-bin.git; then
     yay --sync $aur_pkg_list
 
     # Deleta diretórios usados para instalar o Pinta
-    trash "${HOME}/.dotnet" "${HOME}/.nugget" "${HOME}/.local/share/NuGet"
+    rm --recursive "${HOME}/.dotnet" "${HOME}/.nuget" "${HOME}/.local/share/NuGet"
   fi
 fi
 #-------------------------------------------------------------------------------
