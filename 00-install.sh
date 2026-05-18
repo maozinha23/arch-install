@@ -133,7 +133,6 @@ mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
 # networkmanager : Network connection manager and user applications
 # openssh : SSH protocol implementation for remote login, command execution and file transfer
 # trash-cli : Command line trashcan (recycle bin) interface
-# ufw : Uncomplicated and easy to use CLI tool for managing a netfilter firewall
 # usbutils : A collection of USB tools to query connected USB devices
 pacstrap -K /mnt \
   base \
@@ -154,7 +153,6 @@ pacstrap -K /mnt \
   networkmanager \
   openssh \
   trash-cli \
-  ufw \
   usbutils
 #-------------------------------------------------------------------------------
 # Configuração
