@@ -202,6 +202,9 @@ if git clone https://aur.archlinux.org/yay-bin.git; then
 
     # Instala a lista de pacotes da AUR
     yay --sync $aur_pkg_list
+
+    # Deleta diretórios usados para instalar o Pinta
+    trash .dotnet .nugget .local/share/NuGet
   fi
 fi
 #-------------------------------------------------------------------------------
@@ -238,15 +241,13 @@ if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
       "$HOME/Projects"
 
     # Cria um perfil padrão no firefox e copia "user.js" personalizado
-    firefox -CreateProfile default
-    # firefox --headless \
-    #   --profile "$HOME"/.config/mozilla/firefox/*.default/ \
-    #   --screenshot /dev/null about:blank
-    cp "${HOME}/.config/mozilla/firefox/user.js" \
-      "$HOME"/.config/mozilla/firefox/*.default/
-
-    # Deleta diretórios usados para instalar o Pinta
-    trash .dotnet .nugget .local/share/NuGet
+    if firefox --headless -CreateProfile default; then
+      firefox --headless \
+        --profile "$HOME"/.config/mozilla/firefox/*.default/ \
+        --screenshot /dev/null about:blank
+      cp "${HOME}/.config/mozilla/firefox/user.js" \
+        "$HOME"/.config/mozilla/firefox/*.default/
+    fi
 
     # Altera o shell para zsh
     chsh --shell /usr/bin/zsh
