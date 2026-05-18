@@ -192,6 +192,7 @@ sudo pacman --sync --refresh --sysupgrade --noconfirm $pkg_list
 if git clone https://aur.archlinux.org/yay-bin.git; then
   if cd yay-bin \
     && makepkg --syncdeps --install --noconfirm \
+    && cd \
     && rm --recursive --force "${HOME}/yay-bin"; then
 
     # An open source cross-platform alternative to AirDrop
@@ -204,7 +205,7 @@ if git clone https://aur.archlinux.org/yay-bin.git; then
     yay --sync $aur_pkg_list
 
     # Deleta diretórios usados para instalar o Pinta
-    trash .dotnet .nugget .local/share/NuGet
+    trash "${HOME}/.dotnet" "${HOME}/.nugget" "${HOME}/.local/share/NuGet"
   fi
 fi
 #-------------------------------------------------------------------------------
@@ -223,6 +224,13 @@ sudo sed --in-place 's/^#\(VerbosePkgLists\)/\1/' /etc/pacman.conf
 # Bluetooth
 sudo systemctl enable --now bluetooth.service
 
+# Cria os diretórios de usuário em $HOME
+mkdir --parents \
+  "${HOME}/Documents" \
+  "${HOME}/Downloads" \
+  "${HOME}/Media" \
+  "${HOME}/Projects"
+
 # Clona o repositório do Github que contém arquivos de configuração e cria links
 # simbólicos para esses arquivos nos seus respectivos diretórios
 if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
@@ -233,13 +241,6 @@ if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
   apps=(*/)
 
   if stow --target="$HOME" --no-folding "${apps[@]}"; then
-    # Cria os diretórios de usuário em $HOME
-    mkdir --parents \
-      "${HOME}/Documents" \
-      "${HOME}/Downloads" \
-      "${HOME}/Media" \
-      "$HOME/Projects"
-
     # Cria um perfil padrão no firefox e copia "user.js" personalizado
     if firefox --headless -CreateProfile default; then
       firefox --headless \
