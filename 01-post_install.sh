@@ -211,12 +211,6 @@ fi
 #-------------------------------------------------------------------------------
 # Personalização
 #-------------------------------------------------------------------------------
-# Firewall
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw limit ssh
-sudo ufw enable
-
 # Ativa cores e exibição de pacotes por colunas no pacman
 sudo sed --in-place 's/^#\(Color\)/\1/' /etc/pacman.conf
 sudo sed --in-place 's/^#\(VerbosePkgLists\)/\1/' /etc/pacman.conf
