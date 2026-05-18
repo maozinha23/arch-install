@@ -231,7 +231,11 @@ if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
 
   if stow --target="$HOME" --no-folding "${apps[@]}"; then
     # Cria os diretórios de usuário em $HOME
-    LC_ALL=C xdg-user-dirs-update --force
+    mkdir --parents \
+      "${HOME}/Documents" \
+      "${HOME}/Downloads" \
+      "${HOME}/Media" \
+      "$HOME/Projects"
 
     # Cria um perfil padrão no firefox e copia "user.js" personalizado
     firefox -CreateProfile default
