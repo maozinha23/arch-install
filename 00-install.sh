@@ -1,202 +1,287 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 
-# Define o layout de teclado e fonte durante a instalação
-loadkeys br-abnt2
-setfont -d cp850-8x16
+readonly COLOR_HIGHLIGHT=$'\e[36m'
+readonly COLOR_RESET=$'\e[0m'
+readonly KEYBOARD_LAYOUT='br-abnt2'
 #-------------------------------------------------------------------------------
-# Internet
-#-------------------------------------------------------------------------------
-# Verifica a conectividade com a internet
+# Prepara o disco selecionado para a instalação, fazendo as seguintes operações
+# sobre as partições:
+# 1) Deleta
+# 2) Cria
+# 3) Formata
+# 4) Monta
+# Depois gera o "fstab"
+#
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+# $2: tamanho em MiB da partição EFI
+disk_prepare() {
+  [[ -z "$1" || -z "$2" ]] && return 1
+
+  local disk="$1"
+  local efi_size="$2"
+
+  partitions_delete "$disk"
+  partitions_create "$disk" "$efi_size"
+  partitions_format "$disk"
+  partitions_mount "$disk"
+
+  # Definição de montagem para as partições de sistema e boot
+  genfstab -U /mnt > /mnt/etc/fstab
+}
+
+# Mostra uma mensagem de erro
+err() {
+  echo "$*" >&2
+}
+
+# Obtém (do usuário) o nome do disco a ser usado na instalação
+get_disk() {
+  local -r PROMPT_DISK='Escolha o disco para instalação'
+  local disk
+
+  read -e -r -p "${PROMPT_DISK}: " disk
+
+  echo "$disk"
+}
+
+# Obtém (do usuário) o tamanho da partição EFI em MiB
+get_efi_size() {
+  local -r PROMPT_EFI='Escolha o tamanho (em MiB) da partição de boot (EFI)'
+  local efi_size
+
+  read -e -r -p "${PROMPT_EFI}: " efi_size
+
+  echo "$efi_size"
+}
+
+# Verifica se está conectado na internet
 is_connected() {
-  local count host timeout
+  local -r COUNT=2
   # IP do DNS público do Google
-  host='8.8.8.8'
-  count=2
-  timeout=5
+  local -r HOST='8.8.8.8'
+  local -r TIMEOUT=5
 
-  ping -c "$count" -W "$timeout" "$host" > /dev/null 2>&1
+  ping -c "$COUNT" -W "$TIMEOUT" "$HOST" > /dev/null 2>&1
 }
 
-# Verifica se algum dispositivo de rede wireless foi detectado
-is_wifi_detected() {
-  iwctl device list | grep --quiet 'wlan'
+# Instala os pacotes do sistema
+packages_install() {
+  local pkg_list=''
+  local cpu_microcode
+
+  # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
+  # amd-ucode : Microcode update image for AMD CPUs
+  # intel-ucode : Microcode update files for Intel CPUs
+  [[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ]] \
+    && cpu_microcode='amd-ucode' \
+    || cpu_microcode='intel-ucode'
+
+  pkg_list="$cpu_microcode"
+
+  # Minimal package set to define a basic Arch Linux installation
+  pkg_list="$pkg_list base"
+  # Basic tools to build Arch Linux packages
+  pkg_list="$pkg_list base-devel"
+  # A monitor of system resources, bpytop ported to C++
+  pkg_list="$pkg_list btop"
+  # DOS filesystem utilities
+  pkg_list="$pkg_list dosfstools"
+  # Ext2/3/4 filesystem utilities
+  pkg_list="$pkg_list e2fsprogs"
+  # Linux user-space application to modify the EFI Boot Manager
+  pkg_list="$pkg_list efibootmgr"
+  # exFAT filesystem userspace utilities for the Linux Kernel exfat driver
+  pkg_list="$pkg_list exfatprogs"
+  # Command-line fuzzy finder
+  pkg_list="$pkg_list fzf"
+  # the fast distributed version control system
+  pkg_list="$pkg_list git"
+  # The Linux kernel and modules
+  pkg_list="$pkg_list linux"
+  # Firmware files for Linux - Default set
+  pkg_list="$pkg_list linux-firmware"
+  # A utility for reading man pages
+  pkg_list="$pkg_list man-db"
+  # Linux man pages
+  pkg_list="$pkg_list man-pages"
+  # Pico editor clone with enhancements
+  pkg_list="$pkg_list nano"
+  # Network connection manager and user applications
+  pkg_list="$pkg_list networkmanager"
+  # SSH protocol implementation for remote login, command execution and file
+  # transfer
+  pkg_list="$pkg_list openssh"
+  # Command line trashcan (recycle bin) interface
+  pkg_list="$pkg_list trash-cli"
+  # A collection of USB tools to query connected USB devices
+  pkg_list="$pkg_list usbutils"
+
+  pacstrap -K /mnt $pkg_list
 }
 
-# Se não foi possível conectar à internet por uma interface ethernet, tenta
-# através de uma interface wireless
-if ! is_connected && is_wifi_detected; then
-  printf 'Não foi possível acessar a internet através de conexão cabeada\n\n'
+# Cria as partições de boot e do sistema no disco selecionado
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+# $2: tamanho em MiB da partição EFI
+partitions_create() {
+  [[ -z "$1" || -z "$2" ]] && return 1
 
-  iwctl device list
-  printf '\nEscolha o dispositivo de rede sem fio: '
-  read -r device
+  # GUID para GPT
+  local -r GUID_EFI='C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
+  local -r GUID_LINUX_FS='0FC63DAF-8483-4772-8E79-3D69D8477DE4'
+  local disk="$1"
+  local efi_size="$2"
 
-  iwctl device "$device" set-property Powered off
-  iwctl device "$device" set-property Powered on
-  iwctl station "$device" scan
-  iwctl station "$device" get-networks
-
-  printf '\nEscolha a rede sem fio: '
-  read -r ssid
-
-  printf 'Digite a senha: '
-  stty -echo
-  read -r passphrase
-  stty echo
-
-  printf '\nTentando conectar-se a rede %s (10s de espera)...\n' "$ssid"
-  iwctl --passphrase "$passphrase" station "$device" connect "$ssid" && sleep 10
-fi
-
-# Finaliza o script se não foi possível conectar à internet
-if ! is_connected; then
-  printf '\nNão foi possível conectar à internet.\nO script de instalação será encerrado.\n'
-  exit 1
-fi
-#-------------------------------------------------------------------------------
-# Partições
-#-------------------------------------------------------------------------------
-# Tamanho da partição EFI em MiB
-efi_size=400
-
-printf '\nO script utilizará o seguinte esquema de partições:
-label: gpt
-device: disco_escolhido
-disco_escolhido1: EFI System       - tamanho: %dMiB
-disco_escolhido2: Linux filesystem - tamanho: resto do disco\n\n' \
-"$efi_size"
-
-lsblk
-printf '\nEscolha o disco para instalação: '
-read -r disk
-
-printf 'O sistema será instalado no dispositivo "%s"
-TODOS OS DADOS DO DISCO SERÃO PERDIDOS!
-Deseja continuar? Digite "s" para confirmar: ' "$disk"
-read -r answer
-
-if [[ ! "$answer" =~ ^[Ss]$ ]]; then
-  printf '\nO script de instalação será encerrado.\n'
-  exit 1
-fi
-
-sfdisk --delete "/dev/${disk}"
-
-# GUID para GPT
-guid_efi='C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
-guid_linux_fs='0FC63DAF-8483-4772-8E79-3D69D8477DE4'
-
-cat <<END | sfdisk "/dev/${disk}"
+  cat <<EOF | sfdisk "/dev/${disk}"
 label: gpt
 device: /dev/${disk}
 unit: sectors
 first-lba: 2048
 sector-size: 512
 
-/dev/${disk}1 : start= , size=${efi_size}M, type=$guid_efi
-/dev/${disk}2 : start= , size= , type=$guid_linux_fs
-END
-#-------------------------------------------------------------------------------
-# Formatação e montagem
-#-------------------------------------------------------------------------------
+/dev/${disk}1 : start= , size=${efi_size}M, type=$GUID_EFI
+/dev/${disk}2 : start= , size= , type=$GUID_LINUX_FS
+EOF
+}
+
+# Deleta todas as partições do disco selecionado
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+partitions_delete() {
+  [[ -z "$1" ]] && return 1
+
+  local disk="$1"
+
+  sfdisk --delete "/dev/${disk}"
+}
+
+# Formata as partições de boot e sistema do disco selecionado
 # Boot (EFI): FAT32
-mkfs.fat -F 32 "/dev/${disk}1"
 # Sistema: ext4
-mkfs.ext4 -F "/dev/${disk}2"
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+partitions_format() {
+  [[ -z "$1" ]] && return 1
 
-mount "/dev/${disk}2" /mnt
-mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
-#-------------------------------------------------------------------------------
-# Instalação de pacotes
-#-------------------------------------------------------------------------------
-# Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
-[[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ]] \
-  && cpu_microcode=amd-ucode \
-  || cpu_microcode=intel-ucode
+  local disk="$1"
 
-# amd-ucode : Microcode update image for AMD CPUs
-# base : Minimal package set to define a basic Arch Linux installation
-# base-devel : Basic tools to build Arch Linux packages
-# btop : A monitor of system resources, bpytop ported to C++
-# dosfstools : DOS filesystem utilities
-# e2fsprogs : Ext2/3/4 filesystem utilities
-# efibootmgr : Linux user-space application to modify the EFI Boot Manager
-# exfatprogs : exFAT filesystem userspace utilities for the Linux Kernel exfat driver
-# fzf : Command-line fuzzy finder
-# git : the fast distributed version control system
-# intel-ucode : Microcode update files for Intel CPUs
-# linux : The Linux kernel and modules
-# linux-firmware : Firmware files for Linux - Default set
-# man-db : A utility for reading man pages
-# man-pages : Linux man pages
-# neovim : Fork of Vim aiming to improve user experience, plugins, and GUIs
-# networkmanager : Network connection manager and user applications
-# openssh : SSH protocol implementation for remote login, command execution and file transfer
-# trash-cli : Command line trashcan (recycle bin) interface
-# usbutils : A collection of USB tools to query connected USB devices
-pacstrap -K /mnt \
-  base \
-  base-devel \
-  btop \
-  $cpu_microcode \
-  dosfstools \
-  e2fsprogs \
-  efibootmgr \
-  exfatprogs \
-  fzf \
-  git \
-  linux \
-  linux-firmware \
-  man-db \
-  man-pages \
-  neovim \
-  networkmanager \
-  openssh \
-  trash-cli \
-  usbutils
-#-------------------------------------------------------------------------------
-# Configuração
-#-------------------------------------------------------------------------------
-# Definição de montagem para as partições de sistema e boot
-genfstab -U /mnt >> /mnt/etc/fstab
+  mkfs.fat -F 32 "/dev/${disk}1" && mkfs.ext4 -F "/dev/${disk}2"
+}
 
-# Copia o script de pós-instalação para a raiz do novo sistema
-cp "${HOME}/arch-install/01-post_install.sh" /mnt/
+# Monta as partições de boot e sistema do disco selecionado
+# Boot (EFI): /mnt/boot
+# Sistema: /mnt
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+partitions_mount() {
+  [[ -z "$1" ]] && return 1
+
+  local disk="$1"
+
+  mount "/dev/${disk}2" /mnt \
+    && mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
+}
+
+# Define o layout do teclado
+# $1: layout do teclado
+set_keyboard_layout() {
+  [[ -z "$1" ]] && return 1
+
+  local layout="$1"
+
+  loadkeys "$layout"
+}
+
+# Mostra informações sobre os discos detectados no sistema
+show_disks() {
+  lsblk --output NAME,MODEL,SIZE,FSUSED,FSUSE%,FSTYPE,MOUNTPOINTS
+}
+
+# Mostra o esquema de partições a ser usado na instalação
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+# $2: tamanho em MiB da partição EFI
+show_partition_schema() {
+  [[ -z "$1" || -z "$2" ]] && return 1
+
+  local disk="$1"
+  local efi_size="$2"
+
+  cat <<EOF
+A instalação utilizará o seguinte esquema de partições:
+Tipo: GPT
+Dispositivo: ${COLOR_HIGHLIGHT}${disk}${COLOR_RESET}
+${COLOR_HIGHLIGHT}${disk}1${COLOR_RESET}: EFI System       - tamanho: ${COLOR_HIGHLIGHT}${efi_size}${COLOR_RESET} MiB
+${COLOR_HIGHLIGHT}${disk}2${COLOR_RESET}: Linux filesystem - tamanho: resto do disco
+EOF
+}
+#-------------------------------------------------------------------------------
+main() {
+  local -r MSG_ERR_INTERNET='ERRO: não foi possível conectar à internet'
+  local -r MSG_ERR_INSTALL='ERRO: instalação cancelada'
+  local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo'
+  local -r MSG_WARN_DISK_PARTITION='AVISO: TODOS OS DADOS DO DISCO SERÃO PERDIDOS!'
+  local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
+  local -r OPTION_CONFIRM='s'
+
+  set_keyboard_layout "$KEYBOARD_LAYOUT"
+
+  # Finaliza a instalação se não foi possível conectar à internet
+  if ! is_connected; then
+    err "$MSG_ERR_INTERNET"
+    err "$MSG_ERR_INSTALL"
+    return 1
+  fi
+
+  show_disks
+  disk="$(get_disk)"
+  efi_size="$(get_efi_size)"
+
+  echo "$MSG_INFO_DISK_PARTITION"
+  show_partition_schema "$disk" "$efi_size"
+  echo "$MSG_WARN_DISK_PARTITION"
+  read -e -r -p "${PROMPT_CONFIRM} : "
+
+  # Finaliza a instalação se o usuário não aceitar o particionamento/formatação
+  # do disco
+  if [[ ! "${REPLY,,}" == "$OPTION_CONFIRM" ]]; then
+    err "$MSG_ERR_INSTALL"
+    return 1
+  fi
+
+  disk_prepare "$disk" "$efi_size"
+  packages_install
+}
+
+main "$@"
 
 # Interage com o novo sistema
-arch-chroot -S /mnt /bin/sh -c '
+arch-chroot -S /mnt /bin/bash -c '
 
 # Horário
 ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 hwclock --systohc
 systemctl enable systemd-timesyncd.service
 
-# Localização para português do Brasil
+# Localização para o Brasil, mas com mensagens em inglês
 sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
 locale-gen
-printf "LANG=pt_BR.UTF-8\n" > /etc/locale.conf
+echo "LANG=pt_BR.UTF-8" > /etc/locale.conf
+echo "LC_MESSAGES=C.UTF-8" >> /etc/locale.conf
 
 # Definições do layout do teclado e fonte do console
-printf "KEYMAP=br-abnt2\nFONT=cp850-8x16\n" > /etc/vconsole.conf
+echo "KEYMAP=br-abnt2" > /etc/vconsole.conf
+echo "FONT=cp850-8x14" >> /etc/vconsole.conf
 
 # Hostname
-printf "Digite seu hostname: "
-read -r hostname
-printf "%s\n" "$hostname" > /etc/hostname
+read -e -r -p "Digite seu hostname: " hostname
+echo "$hostname" > /etc/hostname
 
 # NetworkManager
 systemctl enable NetworkManager.service
 
 # Criação do usuário
-printf "Digite seu nome de usuário: "
-read -r user
+read -e -r -p "Digite seu nome de usuário: " user
 useradd --create-home --groups wheel "$user"
+
 while true; do
   passwd "$user" && break
 done
-
-# Move o script de pós-instalação para a "home" do usuário recém criado
-chmod 777 "01-post_install.sh" && mv "01-post_install.sh" "/home/${user}"
 
 # Permite que usuários do grupo "wheel" executem qualquer comando
 sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
@@ -228,7 +313,7 @@ exit
 #-------------------------------------------------------------------------------
 umount -R /mnt
 
-printf '\nInstalação finalizada.\nPressione ENTER para reiniciar.\n'
-read -r _
+echo 'Instalação finalizada'
+read -n 1 -r -s -p "Pressione qualquer tecla para reiniciar..."
 
 reboot
