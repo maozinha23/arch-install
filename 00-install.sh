@@ -2,8 +2,78 @@
 
 readonly COLOR_HIGHLIGHT=$'\e[36m'
 readonly COLOR_RESET=$'\e[0m'
+readonly CONSOLE_FONT='cp850-8x14'
 readonly KEYBOARD_LAYOUT='br-abnt2'
 #-------------------------------------------------------------------------------
+# Configura o novo sistema
+chroot_setup() {
+  arch-chroot -S /mnt /bin/bash -c '
+    readonly CONSOLE_KEYMAP="br-abnt2"
+    readonly CONSOLE_FONT="cp850-8x14"
+    readonly LOCALE_LANG="pt_BR.UTF-8"
+    readonly LOCALE_LC_MESSAGES="C.UTF-8"
+    readonly LOCALTIME="/usr/share/zoneinfo/America/Sao_Paulo"
+    readonly PROMPT_HOSTNAME="Nome do host"
+    readonly PROMPT_USER="Nome do usuário"
+
+    # Horário
+    ln --symbolic --force "$LOCALTIME" /etc/localtime
+    hwclock --systohc
+    systemctl enable systemd-timesyncd.service
+
+    # Localização
+    sed --in-place "s/^#\(${LOCALE_LANG}\)/\1/" /etc/locale.gen
+    locale-gen
+    echo "LANG=$LOCALE_LANG" > /etc/locale.conf
+    echo "LC_MESSAGES=$LOCALE_LC_MESSAGES" >> /etc/locale.conf
+
+    # Definições do layout do teclado e fonte do console
+    echo "KEYMAP=$CONSOLE_KEYMAP" > /etc/vconsole.conf
+    echo "FONT=$CONSOLE_FONT" >> /etc/vconsole.conf
+
+    # Hostname
+    read -e -r -p "${PROMPT_HOSTNAME}: " hostname
+    echo "$hostname" > /etc/hostname
+
+    # NetworkManager
+    systemctl enable NetworkManager.service
+
+    # Criação do usuário
+    read -e -r -p "${PROMPT_USER}: " user
+    useradd --create-home --groups wheel "$user"
+
+    while true; do
+      passwd "$user" && break
+    done
+
+    # Permite que usuários do grupo "wheel" executem qualquer comando
+    sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
+
+    # Desabilita o login do usuário root
+    passwd --lock root
+
+    # Gerenciador de boot (systemd-boot)
+    bootctl install
+
+    cat <<EOF > /boot/loader/loader.conf
+default arch.conf
+timeout 0
+console-mode keep
+EOF
+
+    uuid_root=$(findmnt --noheadings --output UUID /)
+    cat <<EOF > /boot/loader/entries/arch.conf
+title Arch Linux
+linux /vmlinuz-linux
+initrd /initramfs-linux.img
+options root=UUID=$uuid_root rw quiet loglevel=3
+EOF
+
+    exit
+  '
+  umount -R /mnt
+}
+
 # Prepara o disco selecionado para a instalação, fazendo as seguintes operações
 # sobre as partições:
 # 1) Deleta
@@ -39,7 +109,7 @@ get_disk() {
   local -r PROMPT_DISK='Escolha o disco para instalação'
   local disk
 
-  read -e -r -p "${PROMPT_DISK}: " disk
+  read -e -r -p "\n${PROMPT_DISK}: " disk
 
   echo "$disk"
 }
@@ -49,7 +119,7 @@ get_efi_size() {
   local -r PROMPT_EFI='Escolha o tamanho (em MiB) da partição de boot (EFI)'
   local efi_size
 
-  read -e -r -p "${PROMPT_EFI}: " efi_size
+  read -e -r -p "\n${PROMPT_EFI}: " efi_size
 
   echo "$efi_size"
 }
@@ -178,6 +248,16 @@ partitions_mount() {
     && mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
 }
 
+# Define a fonte do console
+# $1: fonte
+set_console_font() {
+  [[ -z "$1" ]] && return 1
+
+  local font="$1"
+
+  setfont -d "$font"
+}
+
 # Define o layout do teclado
 # $1: layout do teclado
 set_keyboard_layout() {
@@ -203,7 +283,6 @@ show_partition_schema() {
   local efi_size="$2"
 
   cat <<EOF
-A instalação utilizará o seguinte esquema de partições:
 Tipo: GPT
 Dispositivo: ${COLOR_HIGHLIGHT}${disk}${COLOR_RESET}
 ${COLOR_HIGHLIGHT}${disk}1${COLOR_RESET}: EFI System       - tamanho: ${COLOR_HIGHLIGHT}${efi_size}${COLOR_RESET} MiB
@@ -214,12 +293,15 @@ EOF
 main() {
   local -r MSG_ERR_INTERNET='ERRO: não foi possível conectar à internet'
   local -r MSG_ERR_INSTALL='ERRO: instalação cancelada'
-  local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo'
+  local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo:'
+  local -r MSG_INFO_INSTALL_COMPLETE='Instalação concluída'
   local -r MSG_WARN_DISK_PARTITION='AVISO: TODOS OS DADOS DO DISCO SERÃO PERDIDOS!'
-  local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
   local -r OPTION_CONFIRM='s'
+  local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
+  local -r PROMPT_RESTART='Pressione qualquer tecla para reiniciar...'
 
   set_keyboard_layout "$KEYBOARD_LAYOUT"
+  set_console_font "$CONSOLE_FONT"
 
   # Finaliza a instalação se não foi possível conectar à internet
   if ! is_connected; then
@@ -228,13 +310,14 @@ main() {
     return 1
   fi
 
+  clear
   show_disks
   disk="$(get_disk)"
   efi_size="$(get_efi_size)"
 
-  echo "$MSG_INFO_DISK_PARTITION"
+  echo -e "\n$MSG_INFO_DISK_PARTITION"
   show_partition_schema "$disk" "$efi_size"
-  echo "$MSG_WARN_DISK_PARTITION"
+  echo -e "\n${MSG_WARN_DISK_PARTITION}\n"
   read -e -r -p "${PROMPT_CONFIRM} : "
 
   # Finaliza a instalação se o usuário não aceitar o particionamento/formatação
@@ -246,74 +329,12 @@ main() {
 
   disk_prepare "$disk" "$efi_size"
   packages_install
+  chroot_setup
+
+  echo "$MSG_INFO_INSTALL_COMPLETE"
+  read -n 1 -r -s -p "$PROMPT_RESTART"
+
+  reboot
 }
 
 main "$@"
-
-# Interage com o novo sistema
-arch-chroot -S /mnt /bin/bash -c '
-
-# Horário
-ln --symbolic --force /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-hwclock --systohc
-systemctl enable systemd-timesyncd.service
-
-# Localização para o Brasil, mas com mensagens em inglês
-sed --in-place "s/^#\(pt_BR.UTF-8\)/\1/" /etc/locale.gen
-locale-gen
-echo "LANG=pt_BR.UTF-8" > /etc/locale.conf
-echo "LC_MESSAGES=C.UTF-8" >> /etc/locale.conf
-
-# Definições do layout do teclado e fonte do console
-echo "KEYMAP=br-abnt2" > /etc/vconsole.conf
-echo "FONT=cp850-8x14" >> /etc/vconsole.conf
-
-# Hostname
-read -e -r -p "Digite seu hostname: " hostname
-echo "$hostname" > /etc/hostname
-
-# NetworkManager
-systemctl enable NetworkManager.service
-
-# Criação do usuário
-read -e -r -p "Digite seu nome de usuário: " user
-useradd --create-home --groups wheel "$user"
-
-while true; do
-  passwd "$user" && break
-done
-
-# Permite que usuários do grupo "wheel" executem qualquer comando
-sed --in-place "s/^# *\(%wheel ALL=(ALL:ALL) ALL\)/\1/" /etc/sudoers
-
-# Desabilita o login do usuário root
-passwd --lock root
-
-# Gerenciador de boot (systemd-boot)
-bootctl install
-
-cat <<EOF > /boot/loader/loader.conf
-default arch.conf
-timeout 0
-console-mode keep
-EOF
-
-uuid_root=$(findmnt --noheadings --output UUID /)
-cat <<EOF > /boot/loader/entries/arch.conf
-title Arch Linux
-linux /vmlinuz-linux
-initrd /initramfs-linux.img
-options root=UUID=$uuid_root rw quiet loglevel=3
-EOF
-
-exit
-'
-#-------------------------------------------------------------------------------
-# Conclusão
-#-------------------------------------------------------------------------------
-umount -R /mnt
-
-echo 'Instalação finalizada'
-read -n 1 -r -s -p "Pressione qualquer tecla para reiniciar..."
-
-reboot
