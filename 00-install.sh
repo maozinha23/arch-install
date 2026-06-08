@@ -11,7 +11,6 @@ chroot_setup() {
     readonly CONSOLE_KEYMAP="br-abnt2"
     readonly CONSOLE_FONT="cp850-8x14"
     readonly LOCALE_LANG="pt_BR.UTF-8"
-    readonly LOCALE_LC_MESSAGES="C.UTF-8"
     readonly LOCALTIME="/usr/share/zoneinfo/America/Sao_Paulo"
     readonly PROMPT_HOSTNAME="Nome do host"
     readonly PROMPT_USER="Nome do usuário"
@@ -25,13 +24,13 @@ chroot_setup() {
     sed --in-place "s/^#\(${LOCALE_LANG}\)/\1/" /etc/locale.gen
     locale-gen
     echo "LANG=$LOCALE_LANG" > /etc/locale.conf
-    echo "LC_MESSAGES=$LOCALE_LC_MESSAGES" >> /etc/locale.conf
 
     # Definições do layout do teclado e fonte do console
     echo "KEYMAP=$CONSOLE_KEYMAP" > /etc/vconsole.conf
     echo "FONT=$CONSOLE_FONT" >> /etc/vconsole.conf
 
     # Hostname
+    clear
     read -e -r -p "${PROMPT_HOSTNAME}: " hostname
     echo "$hostname" > /etc/hostname
 
@@ -68,6 +67,10 @@ linux /vmlinuz-linux
 initrd /initramfs-linux.img
 options root=UUID=$uuid_root rw quiet loglevel=3
 EOF
+
+    # Personalização do bash
+    # Integração do fzf
+    echo "eval \"\$(fzf --bash)\"" >> ~/.bashrc
 
     exit
   '
@@ -109,7 +112,7 @@ get_disk() {
   local -r PROMPT_DISK='Escolha o disco para instalação'
   local disk
 
-  read -e -r -p "\n${PROMPT_DISK}: " disk
+  read -e -r -p "${PROMPT_DISK}: " disk
 
   echo "$disk"
 }
@@ -119,7 +122,7 @@ get_efi_size() {
   local -r PROMPT_EFI='Escolha o tamanho (em MiB) da partição de boot (EFI)'
   local efi_size
 
-  read -e -r -p "\n${PROMPT_EFI}: " efi_size
+  read -e -r -p "${PROMPT_EFI}: " efi_size
 
   echo "$efi_size"
 }
@@ -331,7 +334,7 @@ main() {
   packages_install
   chroot_setup
 
-  echo "$MSG_INFO_INSTALL_COMPLETE"
+  echo -e "\n${MSG_INFO_INSTALL_COMPLETE}\n"
   read -n 1 -r -s -p "$PROMPT_RESTART"
 
   reboot
