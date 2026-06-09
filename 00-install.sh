@@ -4,6 +4,10 @@ readonly COLOR_HIGHLIGHT=$'\e[36m'
 readonly COLOR_RESET=$'\e[0m'
 readonly CONSOLE_FONT='cp850-8x14'
 readonly KEYBOARD_LAYOUT='br-abnt2'
+
+# Valores em MiB
+readonly EFI_SIZE_MIN='400'
+readonly EFI_SIZE_MAX='1000'
 #-------------------------------------------------------------------------------
 # Configura o novo sistema
 chroot_setup() {
@@ -35,7 +39,7 @@ chroot_setup() {
     echo "$hostname" > /etc/hostname
 
     # NetworkManager
-    systemctl enable NetworkManager.service
+    systemctl enable NetworkManager.service > /dev/null
 
     # Criação do usuário
     read -e -r -p "${PROMPT_USER}: " user
@@ -70,7 +74,7 @@ EOF
 
     # Personalização do bash
     # Integração do fzf
-    echo "eval \"\$(fzf --bash)\"" >> ~/.bashrc
+    echo "eval \"\$(fzf --bash)\"" >> "/home/${user}/.bashrc"
 
     exit
   '
@@ -104,7 +108,7 @@ disk_prepare() {
 
 # Mostra uma mensagem de erro
 err() {
-  echo "$*" >&2
+  echo -e "$*" >&2
 }
 
 # Obtém (do usuário) o nome do disco a ser usado na instalação
@@ -119,7 +123,7 @@ get_disk() {
 
 # Obtém (do usuário) o tamanho da partição EFI em MiB
 get_efi_size() {
-  local -r PROMPT_EFI='Escolha o tamanho (em MiB) da partição de boot (EFI)'
+  local -r PROMPT_EFI="Escolha o tamanho (${EFI_SIZE_MIN}-${EFI_SIZE_MAX} MiB) da partição de boot (EFI)"
   local efi_size
 
   read -e -r -p "${PROMPT_EFI}: " efi_size
@@ -155,6 +159,8 @@ packages_install() {
   pkg_list="$pkg_list base"
   # Basic tools to build Arch Linux packages
   pkg_list="$pkg_list base-devel"
+  # Programmable completion for the bash shell
+  pkg_list="$pkg_list bash-completion"
   # A monitor of system resources, bpytop ported to C++
   pkg_list="$pkg_list btop"
   # DOS filesystem utilities
@@ -294,11 +300,14 @@ EOF
 }
 #-------------------------------------------------------------------------------
 main() {
+  local -r MSG_ERR_EFI_SIZE='ERRO: tamanho inválido para a partição EFI'
+  local -r MSG_ERR_DEVICE_INVALID='ERRO: disco inválido'
   local -r MSG_ERR_INTERNET='ERRO: não foi possível conectar à internet'
   local -r MSG_ERR_INSTALL='ERRO: instalação cancelada'
   local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo:'
   local -r MSG_INFO_INSTALL_COMPLETE='Instalação concluída'
   local -r MSG_WARN_DISK_PARTITION='AVISO: TODOS OS DADOS DO DISCO SERÃO PERDIDOS!'
+
   local -r OPTION_CONFIRM='s'
   local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
   local -r PROMPT_RESTART='Pressione qualquer tecla para reiniciar...'
@@ -308,15 +317,30 @@ main() {
 
   # Finaliza a instalação se não foi possível conectar à internet
   if ! is_connected; then
-    err "$MSG_ERR_INTERNET"
-    err "$MSG_ERR_INSTALL"
+    err "$MSG_ERR_INTERNET" "\n$MSG_ERR_INSTALL"
     return 1
   fi
 
   clear
   show_disks
   disk="$(get_disk)"
+
+  # Finaliza a instalação se o usuário digitou um disco inválido
+  if [[ ! -b "/dev/$disk" ]]; then
+    err "$MSG_ERR_DEVICE_INVALID" "\n$MSG_ERR_INSTALL"
+    return 1
+  fi
+
   efi_size="$(get_efi_size)"
+
+  # Finaliza a instalação se o usuário digitou um tamanho inválido para a
+  # partição EFI
+  if [[ ! "$efi_size" =~ ^[0-9]+$ ]] \
+    && (( efi_size < EFI_SIZE_MIN || efi_size > EFI_SIZE_MAX )); then
+
+    err "$MSG_ERR_EFI_SIZE" "\n$MSG_ERR_INSTALL"
+    return 1
+  fi
 
   echo -e "\n$MSG_INFO_DISK_PARTITION"
   show_partition_schema "$disk" "$efi_size"
