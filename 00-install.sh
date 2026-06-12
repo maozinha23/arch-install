@@ -88,18 +88,34 @@ EOF
 disk_prepare() {
   [[ -z "$1" || -z "$2" ]] && return 1
 
+  local -r MSG_ERR_PARTITION_CREATE='ERRO: falha ao criar partições'
+  local -r MSG_ERR_PARTITION_DELETE='ERRO: falha ao deletar partições'
+  local -r MSG_ERR_PARTITION_FORMAT='ERRO: falha ao formatar partições'
+  local -r MSG_ERR_PARTITION_MOUNT='ERRO: falha ao montar partições'
   local disk="$1"
   local efi_size="$2"
 
-  partitions_delete "$disk"
-  read
-  partitions_create "$disk" "$efi_size"
-  read
-  partitions_format "$disk"
-  read
-  partitions_mount "$disk"
-  read
-  genfstab -U /mnt > /mnt/etc/fstab
+  if ! partitions_delete "$disk"; then
+    err "$MSG_ERR_PARTITION_DELETE"
+    return 1
+  fi
+
+  if ! partitions_create "$disk" "$efi_size"; then
+    err "$MSG_ERR_PARTITION_CREATE"
+    return 1
+  fi
+
+  if ! partitions_format "$disk"; then
+    err "$MSG_ERR_PARTITION_FORMAT"
+    return 1
+  fi
+
+  if ! partitions_mount "$disk"; then
+    err "$MSG_ERR_PARTITION_MOUNT"
+    return 1
+  fi
+
+  genfstab -U /mnt >> /mnt/etc/fstab
 }
 
 # Mostra uma mensagem de erro
@@ -124,7 +140,7 @@ get_disk() {
   local -r PROMPT_DISK='Escolha o disco para instalação'
   local disk
 
-  show_disks >&2
+  show_disks
   read -e -r -p "${PROMPT_DISK}: " disk
 
   echo "$disk"
@@ -297,7 +313,7 @@ set_keyboard_layout() {
 
 # Mostra informações sobre os discos detectados no sistema
 show_disks() {
-  lsblk --output NAME,MODEL,SIZE,FSUSED,FSUSE%,FSTYPE,MOUNTPOINTS
+  lsblk --output NAME,MODEL,SIZE,FSUSED,FSUSE%,FSTYPE,MOUNTPOINTS >&2
 }
 
 # Mostra o esquema de partições a ser usado na instalação
