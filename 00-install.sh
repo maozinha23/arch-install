@@ -91,10 +91,14 @@ disk_prepare() {
   local disk="$1"
   local efi_size="$2"
 
-  partitions_delete "$disk" &&
-  partitions_create "$disk" "$efi_size" &&
-  partitions_format "$disk" &&
-  partitions_mount "$disk" &&
+  partitions_delete "$disk"
+  read
+  partitions_create "$disk" "$efi_size"
+  read
+  partitions_format "$disk"
+  read
+  partitions_mount "$disk"
+  read
   genfstab -U /mnt > /mnt/etc/fstab
 }
 
@@ -120,7 +124,7 @@ get_disk() {
   local -r PROMPT_DISK='Escolha o disco para instalação'
   local disk
 
-  show_disks
+  show_disks >&2
   read -e -r -p "${PROMPT_DISK}: " disk
 
   echo "$disk"
@@ -180,7 +184,7 @@ is_efi_size_valid() {
 # Obtém a confirmação do usuário se o esquema de partições está correto
 # $1: disco selecionado (hda, sdb, nvme0n1, etc)
 # $2: tamanho em MiB da partição EFI
-is_partition_schema_valid() {
+is_partition_scheme_valid() {
   [[ -z "$1" || -z "$2" ]] && return 1
 
   local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo:'
@@ -191,7 +195,7 @@ is_partition_schema_valid() {
   local efi_size="$2"
 
   echo -e "\n$MSG_INFO_DISK_PARTITION"
-  show_partition_schema "$disk" "$efi_size"
+  show_partition_scheme "$disk" "$efi_size"
   echo -e "\n${MSG_WARN_DISK_PARTITION}\n"
   read -e -r -p "${PROMPT_CONFIRM}: "
 
@@ -299,7 +303,7 @@ show_disks() {
 # Mostra o esquema de partições a ser usado na instalação
 # $1: disco selecionado (hda, sdb, nvme0n1, etc)
 # $2: tamanho em MiB da partição EFI
-show_partition_schema() {
+show_partition_scheme() {
   [[ -z "$1" || -z "$2" ]] && return 1
 
   local -r COLOR_HIGHLIGHT=$'\e[36m'
@@ -349,7 +353,7 @@ main() {
     return 1
   fi
 
-  if ! is_partition_schema_valid "$disk" "$efi_size"; then
+  if ! is_partition_scheme_valid "$disk" "$efi_size"; then
     err "$MSG_ERR_INSTALL"
     return 1
   fi
