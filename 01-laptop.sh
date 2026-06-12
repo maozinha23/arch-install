@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+    # readonly LOCALE_LC_MESSAGES="C.UTF-8"
+    # echo "LC_MESSAGES=$LOCALE_LC_MESSAGES" >> /etc/locale.conf
 #-------------------------------------------------------------------------------
 # Funções
 #-------------------------------------------------------------------------------
@@ -81,6 +83,8 @@ pkg_list="$pkg_list libqalculate"
 pkg_list="$pkg_list lua-language-server"
 # Disk usage analyzer with an ncurses interface
 pkg_list="$pkg_list ncdu"
+# Fork of Vim aiming to improve user experience, plugins, and GUIs
+pkg_list="$pkg_list neovim"
 # Reader and rewriter of EXIF information that supports raw files
 pkg_list="$pkg_list perl-image-exiftool"
 # Low-latency audio/video router and processor - JACK replacement
@@ -132,8 +136,6 @@ pkg_list="$pkg_list waybar"
 pkg_list="$pkg_list wev"
 # Command-line copy/paste utilities for Wayland
 pkg_list="$pkg_list wl-clipboard"
-# Utility to manage outputs of a Wayland compositor
-pkg_list="$pkg_list wlr-randr"
 
 # Aplicações para interface gráfica: Sistema
 # Fast, lightweight, and minimalistic Wayland terminal emulator
@@ -225,9 +227,11 @@ mkdir --parents \
   "${HOME}/Media" \
   "${HOME}/Projects"
 
+github_url="https://github.com/maozinha23/.dotfiles-laptop"
+
 # Clona o repositório do Github que contém arquivos de configuração e cria links
 # simbólicos para esses arquivos nos seus respectivos diretórios
-if cd && git clone 'https://github.com/maozinha23/.dotfiles'; then
+if cd && git clone "$github_url" .dotfiles; then
   # Remove o arquivo de configuração padrão do bash
   rm .bashrc
 

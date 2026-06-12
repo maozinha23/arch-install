@@ -1,0 +1,41 @@
+PACKAGE_LIST_BASE=(
+  # Minimal package set to define a basic Arch Linux installation
+  base
+  # Basic tools to build Arch Linux packages
+  base-devel
+  # Programmable completion for the bash shell
+  bash-completion
+  # A monitor of system resources, bpytop ported to C++
+  btop
+  # DOS filesystem utilities
+  dosfstools
+  # Ext2/3/4 filesystem utilities
+  e2fsprogs
+  # Linux user-space application to modify the EFI Boot Manager
+  efibootmgr
+  # exFAT filesystem userspace utilities for the Linux Kernel exfat driver
+  exfatprogs
+  # Command-line fuzzy finder
+  fzf
+  # the fast distributed version control system
+  git
+  # The Linux kernel and modules
+  linux
+  # Firmware files for Linux - Default set
+  linux-firmware
+  # A utility for reading man pages
+  man-db
+  # Linux man pages
+  man-pages
+  # Pico editor clone with enhancements
+  nano
+  # Network connection manager and user applications
+  networkmanager
+  # SSH protocol implementation for remote login, command execution and file
+  # transfer
+  openssh
+  # Command line trashcan (recycle bin) interface
+  trash-cli
+  # A collection of USB tools to query connected USB devices
+  usbutils
+)

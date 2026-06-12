@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 
-readonly COLOR_HIGHLIGHT=$'\e[36m'
-readonly COLOR_RESET=$'\e[0m'
-readonly CONSOLE_FONT='cp850-8x14'
-readonly KEYBOARD_LAYOUT='br-abnt2'
-
 # Valores em MiB
-readonly EFI_SIZE_MIN='400'
-readonly EFI_SIZE_MAX='1000'
+readonly EFI_SIZE_MIN=400
+readonly EFI_SIZE_MAX=1000
 #-------------------------------------------------------------------------------
 # Configura o novo sistema
 chroot_setup() {
@@ -77,8 +72,7 @@ EOF
     echo "eval \"\$(fzf --bash)\"" >> "/home/${user}/.bashrc"
 
     exit
-  '
-  umount -R /mnt
+ '
 }
 
 # Prepara o disco selecionado para a instalação, fazendo as seguintes operações
@@ -97,12 +91,10 @@ disk_prepare() {
   local disk="$1"
   local efi_size="$2"
 
-  partitions_delete "$disk"
-  partitions_create "$disk" "$efi_size"
-  partitions_format "$disk"
-  partitions_mount "$disk"
-
-  # Definição de montagem para as partições de sistema e boot
+  partitions_delete "$disk" &&
+  partitions_create "$disk" "$efi_size" &&
+  partitions_format "$disk" &&
+  partitions_mount "$disk" &&
   genfstab -U /mnt > /mnt/etc/fstab
 }
 
@@ -111,11 +103,24 @@ err() {
   echo -e "$*" >&2
 }
 
+# Finaliza a instalação
+finish_install() {
+  local -r MSG_INFO_INSTALL_COMPLETE='Instalação concluída'
+  local -r PROMPT_RESTART='Pressione qualquer tecla para reiniciar...'
+
+  echo -e "\n${MSG_INFO_INSTALL_COMPLETE}\n"
+  read -n 1 -r -s -p "$PROMPT_RESTART"
+
+  umount -R /mnt
+  reboot
+}
+
 # Obtém (do usuário) o nome do disco a ser usado na instalação
 get_disk() {
   local -r PROMPT_DISK='Escolha o disco para instalação'
   local disk
 
+  show_disks
   read -e -r -p "${PROMPT_DISK}: " disk
 
   echo "$disk"
@@ -131,6 +136,16 @@ get_efi_size() {
   echo "$efi_size"
 }
 
+# Obtém o nome do pacote referente ao microcode do dispositivo (AMD/Intel)
+get_package_microcode() {
+  local -r MICROCODE_AMD='amd-ucode'
+  local -r MICROCODE_INTEL='intel-ucode'
+
+  [[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ]] \
+    && echo  "$MICROCODE_AMD" \
+    || echo "$MICROCODE_INTEL"
+}
+
 # Verifica se está conectado na internet
 is_connected() {
   local -r COUNT=2
@@ -141,61 +156,60 @@ is_connected() {
   ping -c "$COUNT" -W "$TIMEOUT" "$HOST" > /dev/null 2>&1
 }
 
+# Verifica se o disco selecionado é um dispositivo válido
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+is_disk_valid() {
+  [[ -z "$1" ]] && return 1
+
+  local disk="$1"
+
+  [[ -b "/dev/$disk" ]]
+}
+
+# Verifica se o tamanho em MiB escolhido para a partição EFI é válido
+# $1: valor inteiro positivo em MiB
+is_efi_size_valid() {
+  [[ -z "$1" ]] && return 1
+
+  local -i efi_size="$1"
+
+  [[ "$efi_size" =~ ^[0-9]+$ ]] \
+    && (( efi_size >= EFI_SIZE_MIN && efi_size <= EFI_SIZE_MAX ))
+}
+
+# Obtém a confirmação do usuário se o esquema de partições está correto
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+# $2: tamanho em MiB da partição EFI
+is_partition_schema_valid() {
+  [[ -z "$1" || -z "$2" ]] && return 1
+
+  local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo:'
+  local -r MSG_WARN_DISK_PARTITION='AVISO: TODOS OS DADOS DO DISCO SERÃO PERDIDOS!'
+  local -r OPTION_CONFIRM='s'
+  local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
+  local disk="$1"
+  local efi_size="$2"
+
+  echo -e "\n$MSG_INFO_DISK_PARTITION"
+  show_partition_schema "$disk" "$efi_size"
+  echo -e "\n${MSG_WARN_DISK_PARTITION}\n"
+  read -e -r -p "${PROMPT_CONFIRM}: "
+
+  [[ "${REPLY,,}" == "$OPTION_CONFIRM" ]]
+}
+
 # Instala os pacotes do sistema
 packages_install() {
-  local pkg_list=''
+  # Contém o array PACKAGE_LIST_BASE com o nome dos pacotes a serem instalados
+  source "$(pwd)/packages-base" || return 1
+
   local cpu_microcode
+  local pkg_list
 
-  # Verifica se o sistema possui um CPU AMD ou Intel para instalar o microcode
-  # amd-ucode : Microcode update image for AMD CPUs
-  # intel-ucode : Microcode update files for Intel CPUs
-  [[ "$(lscpu | grep --ignore-case --count 'amd')" -gt 0 ]] \
-    && cpu_microcode='amd-ucode' \
-    || cpu_microcode='intel-ucode'
+  cpu_microcode="$(get_package_microcode)" || return 1
+  pkg_list=("${PACKAGE_LIST_BASE[@]}" "$cpu_microcode")
 
-  pkg_list="$cpu_microcode"
-
-  # Minimal package set to define a basic Arch Linux installation
-  pkg_list="$pkg_list base"
-  # Basic tools to build Arch Linux packages
-  pkg_list="$pkg_list base-devel"
-  # Programmable completion for the bash shell
-  pkg_list="$pkg_list bash-completion"
-  # A monitor of system resources, bpytop ported to C++
-  pkg_list="$pkg_list btop"
-  # DOS filesystem utilities
-  pkg_list="$pkg_list dosfstools"
-  # Ext2/3/4 filesystem utilities
-  pkg_list="$pkg_list e2fsprogs"
-  # Linux user-space application to modify the EFI Boot Manager
-  pkg_list="$pkg_list efibootmgr"
-  # exFAT filesystem userspace utilities for the Linux Kernel exfat driver
-  pkg_list="$pkg_list exfatprogs"
-  # Command-line fuzzy finder
-  pkg_list="$pkg_list fzf"
-  # the fast distributed version control system
-  pkg_list="$pkg_list git"
-  # The Linux kernel and modules
-  pkg_list="$pkg_list linux"
-  # Firmware files for Linux - Default set
-  pkg_list="$pkg_list linux-firmware"
-  # A utility for reading man pages
-  pkg_list="$pkg_list man-db"
-  # Linux man pages
-  pkg_list="$pkg_list man-pages"
-  # Pico editor clone with enhancements
-  pkg_list="$pkg_list nano"
-  # Network connection manager and user applications
-  pkg_list="$pkg_list networkmanager"
-  # SSH protocol implementation for remote login, command execution and file
-  # transfer
-  pkg_list="$pkg_list openssh"
-  # Command line trashcan (recycle bin) interface
-  pkg_list="$pkg_list trash-cli"
-  # A collection of USB tools to query connected USB devices
-  pkg_list="$pkg_list usbutils"
-
-  pacstrap -K /mnt $pkg_list
+  pacstrap -K /mnt "${pkg_list[@]}"
 }
 
 # Cria as partições de boot e do sistema no disco selecionado
@@ -253,8 +267,8 @@ partitions_mount() {
 
   local disk="$1"
 
-  mount "/dev/${disk}2" /mnt \
-    && mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
+  mount "/dev/${disk}2" /mnt &&
+  mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
 }
 
 # Define a fonte do console
@@ -288,80 +302,74 @@ show_disks() {
 show_partition_schema() {
   [[ -z "$1" || -z "$2" ]] && return 1
 
+  local -r COLOR_HIGHLIGHT=$'\e[36m'
+  local -r COLOR_RESET=$'\e[0m'
   local disk="$1"
   local efi_size="$2"
 
   cat <<EOF
 Tipo: GPT
 Dispositivo: ${COLOR_HIGHLIGHT}${disk}${COLOR_RESET}
-${COLOR_HIGHLIGHT}${disk}1${COLOR_RESET}: EFI System       - tamanho: ${COLOR_HIGHLIGHT}${efi_size}${COLOR_RESET} MiB
-${COLOR_HIGHLIGHT}${disk}2${COLOR_RESET}: Linux filesystem - tamanho: resto do disco
+${COLOR_HIGHLIGHT}${disk}1${COLOR_RESET}: Boot (EFI) - FAT32 - tamanho: ${COLOR_HIGHLIGHT}${efi_size}${COLOR_RESET} MiB
+${COLOR_HIGHLIGHT}${disk}2${COLOR_RESET}: Sistema    - ext4  - tamanho: resto do disco
 EOF
 }
 #-------------------------------------------------------------------------------
 main() {
+  local -r CONSOLE_FONT='cp850-8x14'
+  local -r KEYBOARD_LAYOUT='br-abnt2'
+
   local -r MSG_ERR_EFI_SIZE='ERRO: tamanho inválido para a partição EFI'
   local -r MSG_ERR_DEVICE_INVALID='ERRO: disco inválido'
+  local -r MSG_ERR_DISK_PREPARE='ERRO: falha ao preparar o disco para instalação'
   local -r MSG_ERR_INTERNET='ERRO: não foi possível conectar à internet'
   local -r MSG_ERR_INSTALL='ERRO: instalação cancelada'
-  local -r MSG_INFO_DISK_PARTITION='O sistema será instalado conforme o esquema de partições abaixo:'
-  local -r MSG_INFO_INSTALL_COMPLETE='Instalação concluída'
-  local -r MSG_WARN_DISK_PARTITION='AVISO: TODOS OS DADOS DO DISCO SERÃO PERDIDOS!'
+  local -r MSG_ERR_PACKAGE_INSTALL='ERRO: falha ao instalar os pacotes do sistema'
 
-  local -r OPTION_CONFIRM='s'
-  local -r PROMPT_CONFIRM='Deseja continuar? (s)im/(n)ão'
-  local -r PROMPT_RESTART='Pressione qualquer tecla para reiniciar...'
-
+  clear
   set_keyboard_layout "$KEYBOARD_LAYOUT"
   set_console_font "$CONSOLE_FONT"
 
-  # Finaliza a instalação se não foi possível conectar à internet
   if ! is_connected; then
     err "$MSG_ERR_INTERNET" "\n$MSG_ERR_INSTALL"
     return 1
   fi
 
-  clear
-  show_disks
   disk="$(get_disk)"
 
-  # Finaliza a instalação se o usuário digitou um disco inválido
-  if [[ ! -b "/dev/$disk" ]]; then
+  if ! is_disk_valid "$disk"; then
     err "$MSG_ERR_DEVICE_INVALID" "\n$MSG_ERR_INSTALL"
     return 1
   fi
 
   efi_size="$(get_efi_size)"
 
-  # Finaliza a instalação se o usuário digitou um tamanho inválido para a
-  # partição EFI
-  if [[ ! "$efi_size" =~ ^[0-9]+$ ]] \
-    && (( efi_size < EFI_SIZE_MIN || efi_size > EFI_SIZE_MAX )); then
-
+  if ! is_efi_size_valid "$efi_size"; then
     err "$MSG_ERR_EFI_SIZE" "\n$MSG_ERR_INSTALL"
     return 1
   fi
 
-  echo -e "\n$MSG_INFO_DISK_PARTITION"
-  show_partition_schema "$disk" "$efi_size"
-  echo -e "\n${MSG_WARN_DISK_PARTITION}\n"
-  read -e -r -p "${PROMPT_CONFIRM} : "
-
-  # Finaliza a instalação se o usuário não aceitar o particionamento/formatação
-  # do disco
-  if [[ ! "${REPLY,,}" == "$OPTION_CONFIRM" ]]; then
+  if ! is_partition_schema_valid "$disk" "$efi_size"; then
     err "$MSG_ERR_INSTALL"
     return 1
   fi
 
-  disk_prepare "$disk" "$efi_size"
-  packages_install
-  chroot_setup
+  if ! disk_prepare "$disk" "$efi_size"; then
+    err "$MSG_ERR_DISK_PREPARE" "\n$MSG_ERR_INSTALL"
+    return 1
+  fi
 
-  echo -e "\n${MSG_INFO_INSTALL_COMPLETE}\n"
-  read -n 1 -r -s -p "$PROMPT_RESTART"
+  if ! packages_install; then
+    err "$MSG_ERR_PACKAGE_INSTALL" "\n$MSG_ERR_INSTALL"
+    return 1
+  fi
 
-  reboot
+  if ! chroot_setup; then
+    err "$MSG_ERR_INSTALL"
+    return 1
+  fi
+
+  finish_install
 }
 
 main "$@"
