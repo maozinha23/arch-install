@@ -115,7 +115,7 @@ disk_prepare() {
     return 1
   fi
 
-  genfstab -U /mnt >> /mnt/etc/fstab
+  genfstab -U /mnt > /mnt/etc/fstab
 }
 
 # Mostra uma mensagem de erro
@@ -263,7 +263,7 @@ partitions_delete() {
 
   local disk="$1"
 
-  sfdisk --delete "/dev/${disk}"
+  wipefs --all "/dev/${disk}"
 }
 
 # Formata as partições de boot e sistema do disco selecionado
@@ -287,7 +287,7 @@ partitions_mount() {
 
   local disk="$1"
 
-  mount "/dev/${disk}2" /mnt &&
+  mount "/dev/${disk}2" /mnt
   mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
 }
 
