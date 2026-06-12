@@ -275,7 +275,8 @@ partitions_format() {
 
   local disk="$1"
 
-  mkfs.fat -F 32 "/dev/${disk}1" && mkfs.ext4 -F "/dev/${disk}2"
+  mkfs.fat -F 32 "/dev/${disk}1"
+  mkfs.ext4 "/dev/${disk}2"
 }
 
 # Monta as partições de boot e sistema do disco selecionado
