@@ -72,10 +72,11 @@
 # Prepara o disco selecionado para a instalação. Depois de solicitar confirmação
 # do usuário se o esquema de partições está correto, realiza as seguintes
 # operações sobre as partições:
-# 1) Deleta
-# 2) Cria
-# 3) Formata
-# 4) Monta
+# 1) Desmonta
+# 2) Deleta
+# 3) Cria
+# 4) Formata
+# 5) Monta
 disk_prepare() {
   local -r MSG_ERR_DEVICE_INVALID='ERRO: disco inválido'
   local -r MSG_ERR_EFI_SIZE='ERRO: tamanho inválido para a partição EFI'
@@ -83,6 +84,7 @@ disk_prepare() {
   local -r MSG_ERR_PARTITION_DELETE='ERRO: falha ao deletar partições'
   local -r MSG_ERR_PARTITION_FORMAT='ERRO: falha ao formatar partições'
   local -r MSG_ERR_PARTITION_MOUNT='ERRO: falha ao montar partições'
+  local -r MSG_ERR_PARTITION_UNMOUNT='ERRO: falha ao desmontar partições'
 
   local disk
   local efi_size
@@ -102,7 +104,7 @@ disk_prepare() {
   fi
 
   is_partition_scheme_valid "$disk" "$efi_size" || return 1
-
+  partitions_unmount "$disk" || err "$MSG_ERR_PARTITION_UNMOUNT"
   partitions_delete "$disk" || err "$MSG_ERR_PARTITION_DELETE"
 
   if ! partitions_create "$disk" "$efi_size"; then
@@ -261,9 +263,9 @@ partitions_create() {
   local disk="$1"
   local efi_size="$2"
 
-  cat <<EOF | sfdisk "/dev/${disk}"
+  cat <<EOF | sfdisk "/dev/$disk"
 label: gpt
-device: /dev/${disk}
+device: /dev/$disk
 unit: sectors
 first-lba: 2048
 sector-size: 512
@@ -280,7 +282,8 @@ partitions_delete() {
 
   local disk="$1"
 
-  sfdisk --delete "/dev/${disk}"
+  sfdisk --dump --quiet "/dev/$disk" || return 1
+  sfdisk --delete --wipe always "/dev/$disk"
 }
 
 # Formata as partições de boot e sistema do disco selecionado
@@ -306,6 +309,23 @@ partitions_mount() {
 
   mount "/dev/${disk}2" /mnt \
     && mount --options umask=0077 --mkdir "/dev/${disk}1" /mnt/boot
+}
+
+# Desmonta todas as partições do disco selecionado
+# $1: disco selecionado (hda, sdb, nvme0n1, etc)
+partitions_unmount() {
+  [[ -z "$1" ]] && return 1
+
+  local disk="$1"
+  local mountpoint
+
+  sfdisk --dump --quiet "/dev/$disk" || return 1
+
+  lsblk --noheadings --output MOUNTPOINT /dev/sda \
+    | grep --invert-match '^$' \
+    | while IFS= read -r mountpoint; do
+        umount "$mountpoint" || return 1
+      done
 }
 
 # Define a fonte do console
