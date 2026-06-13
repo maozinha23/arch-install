@@ -103,10 +103,7 @@ disk_prepare() {
 
   is_partition_scheme_valid "$disk" "$efi_size" || return 1
 
-  if ! partitions_delete "$disk"; then
-    err "$MSG_ERR_PARTITION_DELETE"
-    return 1
-  fi
+  partitions_delete "$disk" || err "$MSG_ERR_PARTITION_DELETE"
 
   if ! partitions_create "$disk" "$efi_size"; then
     err "$MSG_ERR_PARTITION_CREATE"
