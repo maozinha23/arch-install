@@ -10,9 +10,9 @@ get_package_list() {
   local -n packages=$1
   local file="$2"
 
-  mapfile -t packages < <(grep --extended-regexp --invert-match '^(#|$)' "$file")
+  mapfile -t packages < <(sed '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$file")
 
-  (( ${#packages[@]} == 0 )) && return 1
+  (( ${#packages[@]} != 0 ))
 }
 
 # Obtém o nome do pacote referente ao microcode do dispositivo (AMD/Intel)

@@ -46,7 +46,7 @@ format_partitions() {
   is_disk_valid "$disk" || return 1
   partitions_exist "$disk" || return 1
 
-  mkfs.fat -F 32 "/dev/${disk}1" && mkfs.ext4 "/dev/${disk}2"
+  mkfs.fat -F 32 "/dev/${disk}1" && mkfs.ext4 -F "/dev/${disk}2"
 }
 
 # Gera um novo fstab considerando os pontos de montagem atuais
