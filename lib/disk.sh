@@ -97,14 +97,14 @@ get_efi_min_size() {
 get_mountpoints() {
   [[ -z "$1" ]] && return 1
 
-  local -n mountpoints=$1
+  local -n mpoints=$1
   local disk="$2"
 
   is_disk_valid "$disk" || return 1
 
   # Desconsidera "warning" de variável não usada
   # shellcheck disable=SC2034
-  readarray -t mountpoints \
+  readarray -t mpoints \
     < <(lsblk --noheadings --output MOUNTPOINT "/dev/$disk" | sed '/^$/d')
 }
 

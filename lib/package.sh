@@ -7,12 +7,12 @@
 get_package_list() {
   [[ -z "$1" || ! -f "$2" ]] && return 1
 
-  local -n pkg_list=$1
+  local -n packages=$1
   local file="$2"
 
-  mapfile -t pkg_list < <(grep --extend-regexp --invert-match '^(#|$)' "$file")
+  mapfile -t packages < <(grep --extended-regexp --invert-match '^(#|$)' "$file")
 
-  (( ${#pkg_list[@]} == 0 )) && return 1
+  (( ${#packages[@]} == 0 )) && return 1
 }
 
 # Obtém o nome do pacote referente ao microcode do dispositivo (AMD/Intel)
@@ -27,13 +27,13 @@ get_microcode_package() {
 
 # Instala os pacotes básicos do sistema
 install_base_packages() {
-  local -r PACKAGES_BASE_FILE="$(dirname -- "${BASH_SOURCE[0]}")/packages/base"
+  local -r PACKAGES_BASE_FILE="$(dirname "${BASH_SOURCE[0]}")/../packages/base"
   [[ -f "$PACKAGES_BASE_FILE" ]] || return 1
 
   local cpu_microcode
   local -a pkg_list=()
 
-  cpu_microcode="$(get_microcode_package)" || return 1
+  cpu_microcode="$(get_microcode_package)"
   get_package_list pkg_list "$PACKAGES_BASE_FILE" || return 1
   pkg_list+=("$cpu_microcode")
 

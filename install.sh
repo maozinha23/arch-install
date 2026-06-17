@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/chroot.sh" || exit 1
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/disk.sh" || exit 1
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/internet.sh" || exit 1
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/package.sh" || exit 1
-source "$(dirname -- "${BASH_SOURCE[0]}")/lib/util.sh" || exit 1
+source "$(dirname "${BASH_SOURCE[0]}")/lib/chroot.sh" || exit 1
+source "$(dirname "${BASH_SOURCE[0]}")/lib/disk.sh" || exit 1
+source "$(dirname "${BASH_SOURCE[0]}")/lib/internet.sh" || exit 1
+source "$(dirname "${BASH_SOURCE[0]}")/lib/package.sh" || exit 1
+source "$(dirname "${BASH_SOURCE[0]}")/lib/util.sh" || exit 1
 #-------------------------------------------------------------------------------
 main() {
   local -r CONSOLE_FONT='cp850-8x14'
